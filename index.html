@@ -306,4 +306,53 @@
         <!-- Order History (always visible, newest first) -->
         <div class="card" style="padding:24px 20px 30px;">
             <div class="card-header"><span class="icon">📋</span> My Order History</div>
+            <div id="orderHistoryContainer" style="max-height:400px; overflow-y:auto;">
+                <p style="text-align:center;">No orders yet.</p>
+            </div>
+        </div>
+    </div>
+         
+    <!-- Admin Panel -->
+    <div class="hidden" id="adminPanel">
+        <button class="logout-btn" onclick="handleLogout()">🚪 Logout</button>
+        <div class="admin-panel">
+            <div class="admin-banner">🛡️ ADMIN PANEL — All Orders</div>
+            <div class="admin-orders" id="adminOrdersContainer">Loading...</div>
+            <div style="padding:12px; text-align:center;">
+                <button class="btn btn-outline btn-sm" onclick="refreshAdminOrders()">🔄 Refresh</button>
+                <p style="font-size:0.7rem;">📧 Contact: aadityadas4000@gmail.com</p>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align:center; padding:20px; font-size:0.75rem; color:var(--text-light);">
+        <p>© 2026 Aaditya Top Up Centre</p>
+        <p>📞 <a href="https://wa.me/9779703078638">+977 9703078638</a> | 📧 aadityadas4000@gmail.com</p>
+    </div>
+</div>
+
+<script>
+    // Email notification via FormSubmit (free)
+    const FORM_SUBMIT_EMAIL = 'aadityadas4000@gmail.com';
+    const FORM_SUBMIT_URL = `https://formsubmit.co/${FORM_SUBMIT_EMAIL}`;
+
+    let currentUser = null;
+    let isAdmin = false;
+    let selectedTopup = null;
+    let paymentScreenshotBase64 = null;
+
+    const diamondTopups = [
+        { diamonds: 115, price: 120 },{ diamonds: 240, price: 220 },{ diamonds: 355, price: 340 },
+        { diamonds: 480, price: 440 },{ diamonds: 610, price: 560 },{ diamonds: 725, price: 650 },
+        { diamonds: 850, price: 760 },{ diamonds: 965, price: 880 },{ diamonds: 1090, price: 970 },
+        { diamonds: 1240, price: 1080 },{ diamonds: 1355, price: 1200 },{ diamonds: 1480, price: 1300 },
+        { diamonds: 1720, price: 1600 },{ diamonds: 2090, price: 1800 },{ diamonds: 2530, price: 2200 }
+    ];
+    const membershipTopups = [
+        { name: 'Weekly Membership', price: 220, icon: '📅' },
+        { name: 'Monthly Membership', price: 1100, icon: '📆' },
+        { name: 'Weekly + Monthly Combo', price: 1180, icon: '🎁' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {   
             
