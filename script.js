@@ -179,7 +179,7 @@ window.handleSignUp = function() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
     if (!email || !password) return showToast('Enter email and password', 'error');
-    if (!isAllowedEmail(email)) return showToast('❌ Only @gmail.com addresses allowed (or admin account)', 'error');
+    if (!isAllowedEmail(email)) return showToast('❌ email is invalid ', 'error');
     if (password.length < 6) return showToast('Password min 6 chars', 'error');
     const users = getUsers();
     if (users[email.toLowerCase()]) return showToast('Email already registered', 'error');
@@ -193,7 +193,7 @@ window.handleSignIn = function() {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value.trim();
     if (!email || !password) return showToast('Enter email and password', 'error');
-    if (!isAllowedEmail(email)) return showToast('❌ Only @gmail.com addresses allowed (or admin account)', 'error');
+    if (!isAllowedEmail(email)) return showToast('❌ email is invalid', 'error');
     const users = getUsers();
     const user = users[email.toLowerCase()];
     if (!user) return showToast('No account found', 'error');
