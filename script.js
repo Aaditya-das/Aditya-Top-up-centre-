@@ -1,27 +1,15 @@
-// ── Safe Storage (works in sandbox + real browser) ──
-var _memStore = {};
-var _store = {
-    get: function(k) {
-        try { return localStorage.getItem(k); }
-        catch(e) { return _memStore[k] || null; }
-    },
-    set: function(k, v) {
-        try { localStorage.setItem(k, v); }
-        catch(e) { _memStore[k] = v; }
-    },
-    remove: function(k) {
-        try { localStorage.removeItem(k); }
-        catch(e) { delete _memStore[k]; }
-    }
-};
+// ── Supabase Config ──
+const SUPABASE_URL = 'https://wrabhrbvnipnxzeebadm.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_0iST9QwDsaLU2sKmo4qvhQ_FmXgMFp0';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-var FORM_SUBMIT_URL = 'https://formsubmit.co/aadityadas4000@gmail.com';
-var currentUser = null;
-var isAdmin = false;
-var selectedTopup = null;
-var paymentScreenshotBase64 = null;
+const ADMIN_EMAIL = 'admin@aadityatopup.com';
+let currentUser = null;
+let isAdmin = false;
+let selectedTopup = null;
+let paymentScreenshotBase64 = null;
 
-var diamondTopups = [
+const diamondTopups = [
     { diamonds: 115,  price: 120  }, { diamonds: 240,  price: 220  },
     { diamonds: 355,  price: 340  }, { diamonds: 480,  price: 440  },
     { diamonds: 610,  price: 560  }, { diamonds: 725,  price: 650  },
@@ -31,34 +19,11 @@ var diamondTopups = [
     { diamonds: 1720, price: 1600 }, { diamonds: 2090, price: 1800 },
     { diamonds: 2530, price: 2200 }
 ];
-
-var membershipTopups = [
-    { name: 'Weekly Membership',       price: 220,  icon: '📅' },
-    { name: 'Monthly Membership',      price: 1100, icon: '📆' },
-    { name: 'Weekly + Monthly Combo',  price: 1180, icon: '🎁' }
+const membershipTopups = [
+    { name: 'Weekly Membership',      price: 220,  icon: '📅' },
+    { name: 'Monthly Membership',     price: 1100, icon: '📆' },
+    { name: 'Weekly + Monthly Combo', price: 1180, icon: '🎁' }
 ];
-
-// ── Storage Helpers ──
-function getUsers()  { return JSON.parse(_store.get('aaditya_users')  || '{}'); }
-function saveUsers(u){ _store.set('aaditya_users', JSON.stringify(u)); }
-function getOrders() { return JSON.parse(_store.get('aaditya_orders') || '[]'); }
-function saveOrders(o){ _store.set('aaditya_orders', JSON.stringify(o)); }
-
-function getStockStatus() {
-    var def = {};
-    diamondTopups.forEach(function(_, i)    { def['diamond_' + i]    = true; });
-    membershipTopups.forEach(function(_, i) { def['membership_' + i] = true; });
-    return JSON.parse(_store.get('aaditya_stock') || JSON.stringify(def));
-}
-function saveStockStatus(s) { _store.set('aaditya_stock', JSON.stringify(s)); }
-function isInStock(type, idx) { return getStockStatus()[type + '_' + idx] !== false; }
-
-// ── Email Validation ──
-function isAllowedEmail(email) {
-    email = email.trim().toLowerCase();
-    if (email === 'admin@aadityatopup.com') return true;
-    return email.endsWith('@gmail.com') && email.length > '@gmail.com'.length;
-}
 
 // ── Toast ──
 function showToast(msg, type, duration) {
@@ -78,49 +43,81 @@ function togglePasswordVisibility() {
     else                           { input.type = 'password'; btn.textContent = '👁️'; }
 }
 
+// ── Email Validation ──
+function isAllowedEmail(email) {
+    email = email.trim().toLowerCase();
+    if (email === ADMIN_EMAIL) return true;
+    return email.endsWith('@gmail.com') && email.length > '@gmail.com'.length;
+}
+
+// ── Show / Hide Panels ──
+function showAuthSection() {
+    document.getElementById('authSection').classList.remove('hidden');
+    document.getElementById('customerDashboard').classList.add('hidden');
+    document.getElementById('adminPanel').classList.add('hidden');
+    document.getElementById('loadingSection').classList.add('hidden');
+}
+function showCustomerDashboard() {
+    document.getElementById('authSection').classList.add('hidden');
+    document.getElementById('customerDashboard').classList.remove('hidden');
+    document.getElementById('adminPanel').classList.add('hidden');
+    document.getElementById('loadingSection').classList.add('hidden');
+}
+function showAdminPanel() {
+    document.getElementById('authSection').classList.add('hidden');
+    document.getElementById('customerDashboard').classList.add('hidden');
+    document.getElementById('adminPanel').classList.remove('hidden');
+    document.getElementById('loadingSection').classList.add('hidden');
+}
+
 // ── Sign Up ──
-function handleSignUp() {
+async function handleSignUp() {
     var email    = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value.trim();
     if (!email || !password)      return showToast('Enter email and password', 'error');
     if (!isAllowedEmail(email))   return showToast('❌ Use a valid Gmail address', 'error');
     if (password.length < 6)      return showToast('Password must be at least 6 characters', 'error');
-    var users = getUsers();
-    if (users[email.toLowerCase()]) return showToast('Email already registered', 'error');
-    users[email.toLowerCase()] = { password: password, createdAt: new Date().toISOString() };
-    saveUsers(users);
-    loginUser(email.toLowerCase());
-    showToast('✅ Account created!', 'success');
+
+    showToast('Creating account...', '');
+    var result = await db.auth.signUp({ email: email, password: password });
+    if (result.error) {
+        showToast('❌ ' + result.error.message, 'error');
+    } else {
+        showToast('✅ Account created! You are now logged in.', 'success');
+    }
 }
 
 // ── Sign In ──
-function handleSignIn() {
+async function handleSignIn() {
     var email    = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value.trim();
     if (!email || !password)    return showToast('Enter email and password', 'error');
     if (!isAllowedEmail(email)) return showToast('❌ Use a valid Gmail address', 'error');
-    var users = getUsers();
-    var user  = users[email.toLowerCase()];
-    if (!user)                    return showToast('No account found. Please sign up.', 'error');
-    if (user.password !== password) return showToast('Incorrect password', 'error');
-    loginUser(email.toLowerCase());
-    showToast('✅ Signed in!', 'success');
+
+    showToast('Signing in...', '');
+    var result = await db.auth.signInWithPassword({ email: email, password: password });
+    if (result.error) {
+        if (result.error.message.toLowerCase().includes('invalid'))
+            showToast('❌ Incorrect email or password', 'error');
+        else
+            showToast('❌ ' + result.error.message, 'error');
+    } else {
+        showToast('✅ Signed in!', 'success');
+    }
 }
 
 // ── Logout ──
-function handleLogout() {
-    currentUser = null; isAdmin = false; selectedTopup = null; paymentScreenshotBase64 = null;
-    _store.remove('aaditya_current_session');
-    document.getElementById('authSection').classList.remove('hidden');
-    document.getElementById('customerDashboard').classList.add('hidden');
-    document.getElementById('adminPanel').classList.add('hidden');
-    document.getElementById('paymentSection').classList.add('hidden');
-    document.getElementById('gameDetailsCard').classList.add('hidden');
-    document.getElementById('orderSummaryCard').classList.add('hidden');
+async function handleLogout() {
+    await db.auth.signOut();
+    selectedTopup = null;
+    paymentScreenshotBase64 = null;
     document.getElementById('authEmail').value    = '';
     document.getElementById('authPassword').value = '';
     document.getElementById('inGameName').value   = '';
     document.getElementById('playerUID').value    = '';
+    document.getElementById('gameDetailsCard').classList.add('hidden');
+    document.getElementById('orderSummaryCard').classList.add('hidden');
+    document.getElementById('paymentSection').classList.add('hidden');
     document.getElementById('uploadArea').classList.remove('has-file');
     document.getElementById('uploadPreview').classList.remove('show');
     document.getElementById('confirmOrderBtn').disabled = true;
@@ -128,48 +125,47 @@ function handleLogout() {
     showToast('👋 Logged out');
 }
 
-// ── Login User ──
-function loginUser(email) {
-    currentUser = { email: email };
-    _store.set('aaditya_current_session', JSON.stringify({ email: email, timestamp: Date.now() }));
-    isAdmin = (email === 'admin@aadityatopup.com');
-    if (isAdmin) {
-        showAdminPanel();
-        loadAllOrders();
-        loadStockManagement();
+// ── Auth State Listener ──
+db.auth.onAuthStateChange(function(event, session) {
+    if (session && session.user) {
+        currentUser = session.user;
+        isAdmin = (currentUser.email === ADMIN_EMAIL);
+        if (isAdmin) {
+            showAdminPanel();
+            loadAllOrders();
+            loadStockManagement();
+        } else {
+            showCustomerDashboard();
+            renderTopupGrids();
+            loadOrderHistory();
+        }
     } else {
-        showCustomerDashboard();
-        loadOrderHistory();
+        currentUser = null;
+        isAdmin = false;
+        showAuthSection();
     }
+});
+
+// ── Stock from Supabase ──
+async function getStockStatus() {
+    var result = await db.from('stock').select('*');
+    var stock  = {};
+    // Default all in stock
+    diamondTopups.forEach(function(_, i)    { stock['diamond_' + i]    = true; });
+    membershipTopups.forEach(function(_, i) { stock['membership_' + i] = true; });
+    if (result.data && result.data.length) {
+        result.data.forEach(function(row) { stock[row.key] = row.in_stock; });
+    }
+    return stock;
 }
 
-// ── Persist Session ──
-function checkPersistedSession() {
-    var raw = _store.get('aaditya_current_session');
-    if (!raw) return;
-    try {
-        var session = JSON.parse(raw);
-        var users   = getUsers();
-        if (users[session.email]) loginUser(session.email);
-        else _store.remove('aaditya_current_session');
-    } catch(e) { _store.remove('aaditya_current_session'); }
-}
-
-// ── Show Panels ──
-function showCustomerDashboard() {
-    document.getElementById('authSection').classList.add('hidden');
-    document.getElementById('customerDashboard').classList.remove('hidden');
-    document.getElementById('adminPanel').classList.add('hidden');
-}
-function showAdminPanel() {
-    document.getElementById('authSection').classList.add('hidden');
-    document.getElementById('customerDashboard').classList.add('hidden');
-    document.getElementById('adminPanel').classList.remove('hidden');
+async function setStockItem(key, inStock) {
+    await db.from('stock').upsert({ key: key, in_stock: inStock });
 }
 
 // ── Render Grids ──
-function renderTopupGrids() {
-    var stock = getStockStatus();
+async function renderTopupGrids() {
+    var stock = await getStockStatus();
 
     document.getElementById('diamondGrid').innerHTML = diamondTopups.map(function(item, i) {
         var inStock = stock['diamond_' + i] !== false;
@@ -199,11 +195,9 @@ function renderTopupGrids() {
 
 // ── Select Topup ──
 function selectTopup(el, type, index) {
-    if (!isInStock(type, index)) { showToast('⚠️ Out of stock', 'error'); return; }
-    document.querySelectorAll('.topup-item.selected, .membership-item.selected')
+    document.querySelectorAll('.topup-item.selected,.membership-item.selected')
             .forEach(function(e) { e.classList.remove('selected'); });
     el.classList.add('selected');
-
     if (type === 'diamond') {
         var item = diamondTopups[index];
         selectedTopup = { type: 'diamond', label: item.diamonds + ' Diamonds', price: item.price };
@@ -211,7 +205,6 @@ function selectTopup(el, type, index) {
         var item = membershipTopups[index];
         selectedTopup = { type: 'membership', label: item.name, price: item.price };
     }
-
     document.getElementById('gameDetailsCard').classList.remove('hidden');
     document.getElementById('orderSummaryCard').classList.remove('hidden');
     document.getElementById('orderSummaryContent').innerHTML =
@@ -225,9 +218,9 @@ function selectTopup(el, type, index) {
 function proceedToPayment() {
     var name = document.getElementById('inGameName').value.trim();
     var uid  = document.getElementById('playerUID').value.trim();
-    if (!name)               return showToast('Enter your in-game name', 'error');
+    if (!name)                  return showToast('Enter your in-game name', 'error');
     if (!uid || uid.length < 6) return showToast('Enter a valid UID', 'error');
-    if (!selectedTopup)      return showToast('Select a top-up package', 'error');
+    if (!selectedTopup)         return showToast('Select a top-up package', 'error');
     document.getElementById('paymentSection').classList.remove('hidden');
     document.getElementById('paymentSection').scrollIntoView({ behavior: 'smooth' });
 }
@@ -243,8 +236,7 @@ function setupScreenshotUploader() {
     area.addEventListener('dragover',  function(e) { e.preventDefault(); area.style.borderColor = 'var(--primary)'; });
     area.addEventListener('dragleave', function()  { area.style.borderColor = '#cbd5e1'; });
     area.addEventListener('drop', function(e) {
-        e.preventDefault();
-        area.style.borderColor = '#cbd5e1';
+        e.preventDefault(); area.style.borderColor = '#cbd5e1';
         if (e.dataTransfer.files.length)
             handleScreenshotUpload({ target: { files: e.dataTransfer.files } });
     });
@@ -282,35 +274,32 @@ function compressImage(dataUrl, maxW, quality, cb) {
 }
 
 // ── Place Order ──
-function confirmPlaceOrder() {
+async function confirmPlaceOrder() {
     var name = document.getElementById('inGameName').value.trim();
     var uid  = document.getElementById('playerUID').value.trim();
     if (!name || !uid || !selectedTopup || !paymentScreenshotBase64)
         return showToast('Please complete all fields', 'error');
 
+    document.getElementById('confirmOrderBtn').disabled = true;
+    showToast('Placing order...', '');
+
     var order = {
-        orderId:       'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
-        customerEmail: currentUser.email,
-        inGameName:    name,
-        playerUID:     uid,
-        topupLabel:    selectedTopup.label,
-        price:         selectedTopup.price,
-        screenshot:    paymentScreenshotBase64,
-        status:        'pending',
-        createdAt:     new Date().toISOString()
+        order_id:       'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+        customer_email: currentUser.email,
+        in_game_name:   name,
+        player_uid:     uid,
+        topup_label:    selectedTopup.label,
+        price:          selectedTopup.price,
+        screenshot:     paymentScreenshotBase64,
+        status:         'pending'
     };
 
-    var orders = getOrders();
-    orders.unshift(order);
-    saveOrders(orders);
-
-    try {
-        fetch(FORM_SUBMIT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(order)
-        });
-    } catch(e) { console.error(e); }
+    var result = await db.from('orders').insert([order]);
+    if (result.error) {
+        showToast('❌ Failed to place order. Try again.', 'error');
+        document.getElementById('confirmOrderBtn').disabled = false;
+        return;
+    }
 
     document.getElementById('thankYouModal').classList.remove('hidden');
     loadOrderHistory();
@@ -318,11 +307,11 @@ function confirmPlaceOrder() {
 }
 
 function resetAfterOrder() {
+    selectedTopup = null; paymentScreenshotBase64 = null;
     document.getElementById('paymentSection').classList.add('hidden');
     document.getElementById('orderSummaryCard').classList.add('hidden');
     document.getElementById('gameDetailsCard').classList.add('hidden');
     document.querySelectorAll('.selected').forEach(function(el) { el.classList.remove('selected'); });
-    selectedTopup = null; paymentScreenshotBase64 = null;
     document.getElementById('inGameName').value = '';
     document.getElementById('playerUID').value  = '';
     document.getElementById('uploadArea').classList.remove('has-file');
@@ -334,135 +323,140 @@ function closeThankYou() {
     document.getElementById('thankYouModal').classList.add('hidden');
 }
 
-// ── Order History ──
-function loadOrderHistory() {
+// ── Order History (Customer) ──
+async function loadOrderHistory() {
     if (!currentUser) return;
-    var orders = getOrders().filter(function(o) { return o.customerEmail === currentUser.email; });
+    var result = await db.from('orders')
+        .select('*')
+        .eq('customer_email', currentUser.email)
+        .order('created_at', { ascending: false });
+
     var c = document.getElementById('orderHistoryContainer');
-    if (!orders.length) { c.innerHTML = '<p style="text-align:center">No orders yet.</p>'; return; }
+    if (!result.data || !result.data.length) {
+        c.innerHTML = '<p style="text-align:center; color:var(--text-light)">No orders yet.</p>';
+        return;
+    }
     c.innerHTML = '<table class="order-table"><thead><tr>' +
         '<th>Status</th><th>Order ID</th><th>Name</th><th>UID</th><th>Package</th><th>Amount</th><th>Date</th>' +
         '</tr></thead><tbody>' +
-        orders.map(function(o) {
+        result.data.map(function(o) {
             return '<tr>' +
                 '<td><span class="status-badge ' + (o.status === 'complete' ? 'status-complete' : 'status-pending') + '">' + o.status + '</span></td>' +
-                '<td>' + o.orderId + '</td><td>' + o.inGameName + '</td><td>' + o.playerUID + '</td>' +
-                '<td>' + o.topupLabel + '</td><td>₹' + o.price + '</td>' +
-                '<td>' + new Date(o.createdAt).toLocaleDateString('en-IN') + '</td></tr>';
+                '<td style="font-size:0.75rem">' + o.order_id + '</td>' +
+                '<td>' + o.in_game_name + '</td>' +
+                '<td>' + o.player_uid + '</td>' +
+                '<td>' + o.topup_label + '</td>' +
+                '<td>₹' + o.price + '</td>' +
+                '<td>' + new Date(o.created_at).toLocaleDateString('en-IN') + '</td></tr>';
         }).join('') + '</tbody></table>';
 }
 
-// ── Admin Orders ──
-function loadAllOrders() {
-    var orders = getOrders();
+// ── Admin: All Orders ──
+async function loadAllOrders() {
+    var result = await db.from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
     var c = document.getElementById('adminOrdersContainer');
-    if (!orders.length) { c.innerHTML = '<p style="padding:12px">No orders yet.</p>'; return; }
-    c.innerHTML = orders.map(function(o, i) {
+    if (!result.data || !result.data.length) {
+        c.innerHTML = '<p style="padding:12px; text-align:center">No orders yet.</p>';
+        return;
+    }
+    c.innerHTML = result.data.map(function(o) {
         return '<div class="admin-order-card ' + (o.status === 'complete' ? 'complete' : '') + '">' +
-            '<p><strong>🆔</strong> ' + o.orderId + '</p>' +
-            '<p><strong>👤</strong> ' + o.customerEmail + '</p>' +
-            '<p><strong>🧑</strong> ' + o.inGameName + '</p>' +
-            '<p><strong>UID</strong> ' + o.playerUID + '</p>' +
-            '<p><strong>💎</strong> ' + o.topupLabel + '</p>' +
+            '<p><strong>🆔</strong> ' + o.order_id + '</p>' +
+            '<p><strong>👤</strong> ' + o.customer_email + '</p>' +
+            '<p><strong>🧑</strong> ' + o.in_game_name + '</p>' +
+            '<p><strong>UID</strong> ' + o.player_uid + '</p>' +
+            '<p><strong>💎</strong> ' + o.topup_label + '</p>' +
             '<p><strong>💰</strong> ₹' + o.price + '</p>' +
-            '<p><strong>📅</strong> ' + new Date(o.createdAt).toLocaleString('en-IN') + '</p>' +
+            '<p><strong>📅</strong> ' + new Date(o.created_at).toLocaleString('en-IN') + '</p>' +
             '<p><strong>📌</strong> <span class="status-badge ' + (o.status === 'complete' ? 'status-complete' : 'status-pending') + '">' + o.status + '</span></p>' +
             (o.screenshot ? '<details><summary>📸 Screenshot</summary><img src="' + o.screenshot + '" style="max-width:100%;border-radius:8px;margin-top:6px"></details>' : '') +
             '<div class="admin-actions">' +
             (o.status === 'pending'
-                ? '<button class="btn btn-sm btn-success" onclick="markComplete(' + i + ')">✅ Complete</button>'
-                : '<button class="btn btn-sm btn-warning" onclick="markPending(' + i + ')">⏳ Pending</button>') +
-            '<button class="btn btn-sm btn-danger" onclick="deleteOrder(' + i + ')">🗑 Delete</button>' +
+                ? '<button class="btn btn-sm btn-success" onclick="markComplete(\'' + o.id + '\')">✅ Complete</button>'
+                : '<button class="btn btn-sm btn-warning" onclick="markPending(\'' + o.id + '\')">⏳ Pending</button>') +
+            '<button class="btn btn-sm btn-danger" onclick="deleteOrder(\'' + o.id + '\')">🗑 Delete</button>' +
             '</div></div>';
     }).join('');
 }
 
-function markComplete(i) { updateOrderStatus(i, 'complete'); }
-function markPending(i)  { updateOrderStatus(i, 'pending');  }
+async function markComplete(id) { await updateOrderStatus(id, 'complete'); }
+async function markPending(id)  { await updateOrderStatus(id, 'pending');  }
 
-function updateOrderStatus(i, status) {
-    var orders = getOrders();
-    orders[i].status = status;
-    saveOrders(orders);
-    loadAllOrders();
+async function updateOrderStatus(id, status) {
+    var result = await db.from('orders').update({ status: status }).eq('id', id);
+    if (result.error) return showToast('❌ Failed to update', 'error');
     showToast('Order marked ' + status, 'success');
-}
-
-function deleteOrder(i) {
-    if (!confirm('Delete this order?')) return;
-    var orders = getOrders();
-    orders.splice(i, 1);
-    saveOrders(orders);
     loadAllOrders();
-    showToast('Deleted', 'success');
 }
 
-function refreshAdminOrders() { loadAllOrders(); showToast('🔄 Refreshed'); }
+async function deleteOrder(id) {
+    if (!confirm('Delete this order?')) return;
+    var result = await db.from('orders').delete().eq('id', id);
+    if (result.error) return showToast('❌ Failed to delete', 'error');
+    showToast('🗑 Deleted', 'success');
+    loadAllOrders();
+}
 
-// ── Stock Management ──
-function loadStockManagement() {
+// ── Admin: Stock ──
+async function loadStockManagement() {
     var c = document.getElementById('stockManagementContainer');
     if (!c) return;
-    var stock = getStockStatus();
+    var stock = await getStockStatus();
     var html  = '<h4 style="margin-bottom:8px">Diamonds</h4>';
     diamondTopups.forEach(function(item, i) {
         var inStock = stock['diamond_' + i] !== false;
-        html += '<div class="stock-item"><span>💎 ' + item.diamonds + ' - ₹' + item.price + '</span>' +
+        html += '<div class="stock-item">' +
+                '<span>💎 ' + item.diamonds + ' — ₹' + item.price + '</span>' +
                 '<button class="btn btn-sm ' + (inStock ? 'btn-warning' : 'btn-success') + '" onclick="toggleStock(\'diamond\',' + i + ')">' +
                 (inStock ? 'Mark Out' : 'Mark In') + '</button></div>';
     });
     html += '<h4 style="margin-top:12px;margin-bottom:8px">Memberships</h4>';
     membershipTopups.forEach(function(item, i) {
         var inStock = stock['membership_' + i] !== false;
-        html += '<div class="stock-item"><span>' + item.icon + ' ' + item.name + ' - ₹' + item.price + '</span>' +
+        html += '<div class="stock-item">' +
+                '<span>' + item.icon + ' ' + item.name + ' — ₹' + item.price + '</span>' +
                 '<button class="btn btn-sm ' + (inStock ? 'btn-warning' : 'btn-success') + '" onclick="toggleStock(\'membership\',' + i + ')">' +
                 (inStock ? 'Mark Out' : 'Mark In') + '</button></div>';
     });
     c.innerHTML = html;
 }
 
-function toggleStock(type, index) {
-    var stock = getStockStatus();
-    stock[type + '_' + index] = !stock[type + '_' + index];
-    saveStockStatus(stock);
+async function toggleStock(type, index) {
+    var stock   = await getStockStatus();
+    var key     = type + '_' + index;
+    var newVal  = !stock[key];
+    await setStockItem(key, newVal);
     renderTopupGrids();
     loadStockManagement();
+    showToast(newVal ? '✅ Marked In Stock' : '⛔ Marked Out of Stock', 'success');
 }
 
-function setAllOutOfStock() {
+async function setAllOutOfStock() {
     if (!confirm('Mark ALL items out of stock?')) return;
-    var stock = {};
-    diamondTopups.forEach(function(_, i)    { stock['diamond_' + i]    = false; });
-    membershipTopups.forEach(function(_, i) { stock['membership_' + i] = false; });
-    saveStockStatus(stock);
+    var promises = [];
+    diamondTopups.forEach(function(_, i)    { promises.push(setStockItem('diamond_' + i, false)); });
+    membershipTopups.forEach(function(_, i) { promises.push(setStockItem('membership_' + i, false)); });
+    await Promise.all(promises);
     renderTopupGrids();
     loadStockManagement();
-    showToast('All items set to Out of Stock', 'success');
-}
-
-function resetAllInStock() {
-    var stock = {};
-    diamondTopups.forEach(function(_, i)    { stock['diamond_' + i]    = true; });
-    membershipTopups.forEach(function(_, i) { stock['membership_' + i] = true; });
-    saveStockStatus(stock);
+    showToast('⛔ All items set to Out of Stock', 'success');
+} 
+async function resetAllInStock() {
+    var promises = [];
+    diamondTopups.forEach(function(_, i)    { promises.push(setStockItem('diamond_' + i, true)); });
+    membershipTopups.forEach(function(_, i) { promises.push(setStockItem('membership_' + i, true)); });
+    await Promise.all(promises);
     renderTopupGrids();
     loadStockManagement();
-    showToast('All items now In Stock', 'success');
-}
-
-// ── Admin Account ──
-function ensureAdminAccount() {
-    var users = getUsers();
-    if (!users['admin@aadityatopup.com']) {
-        users['admin@aadityatopup.com'] = { password: 'Admin@2026', createdAt: new Date().toISOString() };
-        saveUsers(users);
-    }
+    showToast('✅ All items now In Stock', 'success');
 }
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function() {
-    ensureAdminAccount();
-    renderTopupGrids();
     setupScreenshotUploader();
-    checkPersistedSession();
+    document.getElementById('loadingSection').classList.remove('hidden');
+    document.getElementById('authSection').classList.add('hidden');
 });
