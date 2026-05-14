@@ -1,15 +1,29 @@
-// ── Supabase Config ──
-const SUPABASE_URL = 'https://wrabhrbvnipnxzeebadm.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_0iST9QwDsaLU2sKmo4qvhQ_FmXgMFp0';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ══════════════════════════════════════════
+//  Aaditya Top Up Centre — script.js
+//  Database: Supabase
+// ══════════════════════════════════════════
 
-const ADMIN_EMAIL = 'admin@aadityatopup.com';
-let currentUser = null;
-let isAdmin = false;
-let selectedTopup = null;
-let paymentScreenshotBase64 = null;
+// ── Config ──
+var SUPABASE_URL = 'https://wrabhrbvnipnxzeebadm.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_0iST9QwDsaLU2sKmo4qvhQ_FmXgMFp0';
+var ADMIN_EMAIL  = 'admin@aadityatopup.com';
 
-const diamondTopups = [
+// ── Init Supabase ──
+var _supabase;
+try {
+    _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e) {
+    console.error('Supabase init failed:', e);
+}
+
+// ── State ──
+var currentUser            = null;
+var isAdmin                = false;
+var selectedTopup          = null;
+var paymentScreenshotBase64 = null;
+
+// ── Data ──
+var diamondTopups = [
     { diamonds: 115,  price: 120  }, { diamonds: 240,  price: 220  },
     { diamonds: 355,  price: 340  }, { diamonds: 480,  price: 440  },
     { diamonds: 610,  price: 560  }, { diamonds: 725,  price: 650  },
@@ -19,23 +33,25 @@ const diamondTopups = [
     { diamonds: 1720, price: 1600 }, { diamonds: 2090, price: 1800 },
     { diamonds: 2530, price: 2200 }
 ];
-const membershipTopups = [
+var membershipTopups = [
     { name: 'Weekly Membership',      price: 220,  icon: '📅' },
     { name: 'Monthly Membership',     price: 1100, icon: '📆' },
     { name: 'Weekly + Monthly Combo', price: 1180, icon: '🎁' }
 ];
 
-// ── Toast ──
+// ══════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════
+
 function showToast(msg, type, duration) {
     duration = duration || 3000;
     var t = document.getElementById('toast');
     t.textContent = msg;
-    t.className = 'toast ' + (type || '') + ' show';
+    t.className   = 'toast ' + (type || '') + ' show';
     clearTimeout(t._t);
     t._t = setTimeout(function() { t.classList.remove('show'); }, duration);
 }
 
-// ── Password Toggle ──
 function togglePasswordVisibility() {
     var input = document.getElementById('authPassword');
     var btn   = document.getElementById('authPasswordToggle');
@@ -43,26 +59,37 @@ function togglePasswordVisibility() {
     else                           { input.type = 'password'; btn.textContent = '👁️'; }
 }
 
-// ── Email Validation ──
 function isAllowedEmail(email) {
     email = email.trim().toLowerCase();
     if (email === ADMIN_EMAIL) return true;
     return email.endsWith('@gmail.com') && email.length > '@gmail.com'.length;
 }
 
-// ── Show / Hide Panels ──
+function setBtn(id, disabled, text) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled     = disabled;
+    btn.textContent  = text;
+}
+
+// ══════════════════════════════════════════
+//  PANELS
+// ══════════════════════════════════════════
+
 function showAuthSection() {
     document.getElementById('authSection').classList.remove('hidden');
     document.getElementById('customerDashboard').classList.add('hidden');
     document.getElementById('adminPanel').classList.add('hidden');
     document.getElementById('loadingSection').classList.add('hidden');
 }
+
 function showCustomerDashboard() {
     document.getElementById('authSection').classList.add('hidden');
     document.getElementById('customerDashboard').classList.remove('hidden');
     document.getElementById('adminPanel').classList.add('hidden');
     document.getElementById('loadingSection').classList.add('hidden');
 }
+
 function showAdminPanel() {
     document.getElementById('authSection').classList.add('hidden');
     document.getElementById('customerDashboard').classList.add('hidden');
@@ -70,46 +97,81 @@ function showAdminPanel() {
     document.getElementById('loadingSection').classList.add('hidden');
 }
 
-// ── Sign Up ──
+// ══════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════
+
 async function handleSignUp() {
     var email    = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value.trim();
-    if (!email || !password)      return showToast('Enter email and password', 'error');
-    if (!isAllowedEmail(email))   return showToast('❌ Use a valid Gmail address', 'error');
-    if (password.length < 6)      return showToast('Password must be at least 6 characters', 'error');
 
-    showToast('Creating account...', '');
-    var result = await db.auth.signUp({ email: email, password: password });
-    if (result.error) {
-        showToast('❌ ' + result.error.message, 'error');
-    } else {
-        showToast('✅ Account created! You are now logged in.', 'success');
+    if (!email && !password) return showToast('⚠️ Please enter your email and password', 'error');
+    if (!email)              return showToast('⚠️ Please enter your email address', 'error');
+    if (!password)           return showToast('⚠️ Please enter a password', 'error');
+    if (!isAllowedEmail(email)) return showToast('❌ Only Gmail addresses allowed  e.g. you@gmail.com', 'error');
+    if (password.length < 6) return showToast('❌ Password too short — use at least 6 characters', 'error');
+
+    showToast('⏳ Creating your account...', '');
+    try {
+        var res = await _supabase.auth.signUp({ email: email, password: password });
+        if (res.error) {
+            var msg = res.error.message.toLowerCase();
+            if (msg.includes('already registered') || msg.includes('already exists') || msg.includes('user already'))
+                showToast('❌ This email is already registered — try Sign In instead', 'error');
+            else if (msg.includes('invalid email'))
+                showToast('❌ That email address looks invalid — check and try again', 'error');
+            else if (msg.includes('weak password'))
+                showToast('❌ Password is too weak — use letters, numbers and symbols', 'error');
+            else if (msg.includes('network') || msg.includes('fetch'))
+                showToast('⚠️ No internet — check your connection and try again', 'error');
+            else
+                showToast('❌ ' + res.error.message, 'error');
+        } else {
+            showToast('✅ Account created! Welcome!', 'success');
+        }
+    } catch(e) {
+        showToast('❌ Connection error — check your internet and try again', 'error');
     }
 }
 
-// ── Sign In ──
 async function handleSignIn() {
     var email    = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value.trim();
-    if (!email || !password)    return showToast('Enter email and password', 'error');
-    if (!isAllowedEmail(email)) return showToast('❌ Use a valid Gmail address', 'error');
 
-    showToast('Signing in...', '');
-    var result = await db.auth.signInWithPassword({ email: email, password: password });
-    if (result.error) {
-        if (result.error.message.toLowerCase().includes('invalid'))
-            showToast('❌ Incorrect email or password', 'error');
-        else
-            showToast('❌ ' + result.error.message, 'error');
-    } else {
-        showToast('✅ Signed in!', 'success');
+    if (!email && !password) return showToast('⚠️ Please enter your email and password', 'error');
+    if (!email)              return showToast('⚠️ Please enter your email address', 'error');
+    if (!password)           return showToast('⚠️ Please enter your password', 'error');
+    if (!isAllowedEmail(email)) return showToast('❌ Only Gmail addresses allowed  e.g. you@gmail.com', 'error');
+
+    showToast('⏳ Signing you in...', '');
+    try {
+        var res = await _supabase.auth.signInWithPassword({ email: email, password: password });
+        if (res.error) {
+            var msg = res.error.message.toLowerCase();
+            if (msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('wrong') || msg.includes('invalid'))
+                showToast('❌ Wrong password — please try again', 'error');
+            else if (msg.includes('user not found') || msg.includes('no user'))
+                showToast('❌ No account found — please Sign Up first', 'error');
+            else if (msg.includes('email not confirmed'))
+                showToast('❌ Please confirm your email — check your inbox', 'error');
+            else if (msg.includes('too many') || msg.includes('rate limit'))
+                showToast('⚠️ Too many attempts — wait a few minutes and try again', 'error');
+            else if (msg.includes('network') || msg.includes('fetch'))
+                showToast('⚠️ No internet — check your connection and try again', 'error');
+            else
+                showToast('❌ ' + res.error.message, 'error');
+        }
+        // success is handled by onAuthStateChange
+    } catch(e) {
+        showToast('❌ Connection error — check your internet and try again', 'error');
     }
 }
 
-// ── Logout ──
 async function handleLogout() {
-    await db.auth.signOut();
-    selectedTopup = null;
+    try { await _supabase.auth.signOut(); } catch(e) {}
+    currentUser             = null;
+    isAdmin                 = false;
+    selectedTopup           = null;
     paymentScreenshotBase64 = null;
     document.getElementById('authEmail').value    = '';
     document.getElementById('authPassword').value = '';
@@ -121,15 +183,28 @@ async function handleLogout() {
     document.getElementById('uploadArea').classList.remove('has-file');
     document.getElementById('uploadPreview').classList.remove('show');
     document.getElementById('confirmOrderBtn').disabled = true;
-    document.querySelectorAll('.selected').forEach(function(el) { el.classList.remove('selected'); });
+    document.querySelectorAll('.selected').forEach(function(el){ el.classList.remove('selected'); });
+    showAuthSection();
     showToast('👋 Logged out');
 }
 
 // ── Auth State Listener ──
-db.auth.onAuthStateChange(function(event, session) {
+var _authLoaded = false;
+// Timeout — if auth doesn't respond in 4s, show auth section
+var _authTimeout = setTimeout(function() {
+    if (!_authLoaded) {
+        _authLoaded = true;
+        showAuthSection();
+    }
+}, 4000);
+
+_supabase.auth.onAuthStateChange(function(event, session) {
+    clearTimeout(_authTimeout);
+    _authLoaded = true;
+
     if (session && session.user) {
         currentUser = session.user;
-        isAdmin = (currentUser.email === ADMIN_EMAIL);
+        isAdmin     = (currentUser.email === ADMIN_EMAIL);
         if (isAdmin) {
             showAdminPanel();
             loadAllOrders();
@@ -141,30 +216,46 @@ db.auth.onAuthStateChange(function(event, session) {
         }
     } else {
         currentUser = null;
-        isAdmin = false;
+        isAdmin     = false;
         showAuthSection();
     }
 });
 
-// ── Stock from Supabase ──
+// ══════════════════════════════════════════
+//  STOCK
+// ══════════════════════════════════════════
+
+function getDefaultStock() {
+    var s = {};
+    diamondTopups.forEach(function(_, i)    { s['diamond_' + i]    = true; });
+    membershipTopups.forEach(function(_, i) { s['membership_' + i] = true; });
+    return s;
+}
+
 async function getStockStatus() {
-    var result = await db.from('stock').select('*');
-    var stock  = {};
-    // Default all in stock
-    diamondTopups.forEach(function(_, i)    { stock['diamond_' + i]    = true; });
-    membershipTopups.forEach(function(_, i) { stock['membership_' + i] = true; });
-    if (result.data && result.data.length) {
-        result.data.forEach(function(row) { stock[row.key] = row.in_stock; });
-    }
-    return stock;
+    try {
+        var res = await _supabase.from('stock').select('*');
+        var stock = getDefaultStock();
+        if (res.data && res.data.length) {
+            res.data.forEach(function(row) { stock[row.key] = row.in_stock; });
+        }
+        return stock;
+    } catch(e) { return getDefaultStock(); }
 }
 
 async function setStockItem(key, inStock) {
-    await db.from('stock').upsert({ key: key, in_stock: inStock });
+    try {
+        await _supabase.from('stock').upsert({ key: key, in_stock: inStock }, { onConflict: 'key' });
+    } catch(e) { console.error('Stock update failed', e); }
 }
 
-// ── Render Grids ──
+// ══════════════════════════════════════════
+//  TOPUP GRIDS
+// ══════════════════════════════════════════
+
 async function renderTopupGrids() {
+    document.getElementById('diamondGrid').innerHTML    = '<p style="text-align:center;color:var(--text-light);grid-column:1/-1">Loading...</p>';
+    document.getElementById('membershipGrid').innerHTML = '';
     var stock = await getStockStatus();
 
     document.getElementById('diamondGrid').innerHTML = diamondTopups.map(function(item, i) {
@@ -188,38 +279,43 @@ async function renderTopupGrids() {
         var cls   = 'membership-item' + (inStock ? '' : ' out-of-stock');
         var click = inStock ? 'onclick="selectTopup(this,\'membership\',' + i + ')"' : '';
         return '<div class="' + cls + '" ' + click + '>' +
-               '<div><span class="membership-name">' + item.icon + ' ' + item.name + '</span> ' + badge + '</div>' +
+               '<div><span class="membership-name">' + item.icon + ' ' + item.name + '</span><br>' + badge + '</div>' +
                '<span class="membership-price">₹' + item.price + '</span></div>';
     }).join('');
 }
 
-// ── Select Topup ──
+// ══════════════════════════════════════════
+//  SELECT & ORDER FLOW
+// ══════════════════════════════════════════
+
 function selectTopup(el, type, index) {
     document.querySelectorAll('.topup-item.selected,.membership-item.selected')
             .forEach(function(e) { e.classList.remove('selected'); });
     el.classList.add('selected');
+
     if (type === 'diamond') {
-        var item = diamondTopups[index];
+        var item  = diamondTopups[index];
         selectedTopup = { type: 'diamond', label: item.diamonds + ' Diamonds', price: item.price };
     } else {
-        var item = membershipTopups[index];
+        var item  = membershipTopups[index];
         selectedTopup = { type: 'membership', label: item.name, price: item.price };
     }
+
     document.getElementById('gameDetailsCard').classList.remove('hidden');
     document.getElementById('orderSummaryCard').classList.remove('hidden');
     document.getElementById('orderSummaryContent').innerHTML =
         '<div style="background:#f8faff;padding:14px;border-radius:10px;text-align:center">' +
-        '<p style="font-size:1.1rem;font-weight:700">' + (type === 'diamond' ? '💎' : '🏅') + ' ' + selectedTopup.label + '</p>' +
+        '<p style="font-size:1.1rem;font-weight:700">' + (type === 'diamond' ? '💎' : '🏅') +
+        ' ' + selectedTopup.label + '</p>' +
         '<p style="font-size:1.5rem;font-weight:800;color:#059669">₹' + selectedTopup.price + '</p></div>';
     document.getElementById('gameDetailsCard').scrollIntoView({ behavior: 'smooth' });
 }
 
-// ── Payment ──
 function proceedToPayment() {
     var name = document.getElementById('inGameName').value.trim();
     var uid  = document.getElementById('playerUID').value.trim();
     if (!name)                  return showToast('Enter your in-game name', 'error');
-    if (!uid || uid.length < 6) return showToast('Enter a valid UID', 'error');
+    if (!uid || uid.length < 6) return showToast('Enter a valid UID (min 6 digits)', 'error');
     if (!selectedTopup)         return showToast('Select a top-up package', 'error');
     document.getElementById('paymentSection').classList.remove('hidden');
     document.getElementById('paymentSection').scrollIntoView({ behavior: 'smooth' });
@@ -230,13 +326,18 @@ function cancelPayment() {
     document.getElementById('orderSummaryCard').scrollIntoView({ behavior: 'smooth' });
 }
 
-// ── Screenshot Upload ──
+// ══════════════════════════════════════════
+//  SCREENSHOT UPLOAD
+// ══════════════════════════════════════════
+
 function setupScreenshotUploader() {
     var area = document.getElementById('uploadArea');
+    if (!area) return;
     area.addEventListener('dragover',  function(e) { e.preventDefault(); area.style.borderColor = 'var(--primary)'; });
     area.addEventListener('dragleave', function()  { area.style.borderColor = '#cbd5e1'; });
     area.addEventListener('drop', function(e) {
-        e.preventDefault(); area.style.borderColor = '#cbd5e1';
+        e.preventDefault();
+        area.style.borderColor = '#cbd5e1';
         if (e.dataTransfer.files.length)
             handleScreenshotUpload({ target: { files: e.dataTransfer.files } });
     });
@@ -245,18 +346,21 @@ function setupScreenshotUploader() {
 function handleScreenshotUpload(event) {
     var file = event.target.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return showToast('File too large (max 5MB)', 'error');
+    if (!file.type.startsWith('image/')) return showToast('Please upload an image file', 'error');
+    if (file.size > 10 * 1024 * 1024)   return showToast('File too large (max 10MB)', 'error');
+
     var reader = new FileReader();
     reader.onload = function(e) {
-        compressImage(e.target.result, 800, 0.7, function(b64) {
+        compressImage(e.target.result, 700, 0.6, function(b64) {
             paymentScreenshotBase64 = b64;
             document.getElementById('uploadPreview').src = b64;
             document.getElementById('uploadPreview').classList.add('show');
             document.getElementById('uploadArea').classList.add('has-file');
             document.getElementById('confirmOrderBtn').disabled = false;
-            showToast('📸 Screenshot uploaded', 'success');
+            showToast('📸 Screenshot uploaded!', 'success');
         });
     };
+    reader.onerror = function() { showToast('Failed to read file', 'error'); };
     reader.readAsDataURL(file);
 }
 
@@ -265,23 +369,28 @@ function compressImage(dataUrl, maxW, quality, cb) {
     img.onload = function() {
         var canvas = document.createElement('canvas');
         var w = img.width, h = img.height;
-        if (w > maxW) { h = (maxW / w) * h; w = maxW; }
+        if (w > maxW) { h = Math.round((maxW / w) * h); w = maxW; }
         canvas.width = w; canvas.height = h;
         canvas.getContext('2d').drawImage(img, 0, 0, w, h);
         cb(canvas.toDataURL('image/jpeg', quality));
     };
+    img.onerror = function() { showToast('Failed to process image', 'error'); };
     img.src = dataUrl;
 }
 
-// ── Place Order ──
+// ══════════════════════════════════════════
+//  PLACE ORDER
+// ══════════════════════════════════════════
+
 async function confirmPlaceOrder() {
     var name = document.getElementById('inGameName').value.trim();
     var uid  = document.getElementById('playerUID').value.trim();
     if (!name || !uid || !selectedTopup || !paymentScreenshotBase64)
         return showToast('Please complete all fields', 'error');
 
-    document.getElementById('confirmOrderBtn').disabled = true;
-    showToast('Placing order...', '');
+    var btn = document.getElementById('confirmOrderBtn');
+    btn.disabled    = true;
+    btn.textContent = '⏳ Placing Order...';
 
     var order = {
         order_id:       'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
@@ -294,167 +403,223 @@ async function confirmPlaceOrder() {
         status:         'pending'
     };
 
-    var result = await db.from('orders').insert([order]);
-    if (result.error) {
-        showToast('❌ Failed to place order. Try again.', 'error');
-        document.getElementById('confirmOrderBtn').disabled = false;
-        return;
+    try {
+        var res = await _supabase.from('orders').insert([order]);
+        if (res.error) {
+            showToast('❌ Failed to place order: ' + res.error.message, 'error');
+            btn.disabled    = false;
+            btn.textContent = '✅ Confirm & Place Order';
+            return;
+        }
+        document.getElementById('thankYouModal').classList.remove('hidden');
+        resetAfterOrder();
+        loadOrderHistory();
+    } catch(e) {
+        showToast('❌ Connection error. Try again.', 'error');
+        btn.disabled    = false;
+        btn.textContent = '✅ Confirm & Place Order';
     }
-
-    document.getElementById('thankYouModal').classList.remove('hidden');
-    loadOrderHistory();
-    resetAfterOrder();
 }
 
 function resetAfterOrder() {
-    selectedTopup = null; paymentScreenshotBase64 = null;
+    selectedTopup           = null;
+    paymentScreenshotBase64 = null;
     document.getElementById('paymentSection').classList.add('hidden');
     document.getElementById('orderSummaryCard').classList.add('hidden');
     document.getElementById('gameDetailsCard').classList.add('hidden');
-    document.querySelectorAll('.selected').forEach(function(el) { el.classList.remove('selected'); });
-    document.getElementById('inGameName').value = '';
-    document.getElementById('playerUID').value  = '';
+    document.querySelectorAll('.selected').forEach(function(el){ el.classList.remove('selected'); });
+    document.getElementById('inGameName').value   = '';
+    document.getElementById('playerUID').value    = '';
     document.getElementById('uploadArea').classList.remove('has-file');
     document.getElementById('uploadPreview').classList.remove('show');
-    document.getElementById('confirmOrderBtn').disabled = true;
+    document.getElementById('confirmOrderBtn').disabled    = true;
+    document.getElementById('confirmOrderBtn').textContent = '✅ Confirm & Place Order';
+    // Reset file input
+    var fi = document.getElementById('screenshotInput');
+    if (fi) fi.value = '';
 }
 
 function closeThankYou() {
     document.getElementById('thankYouModal').classList.add('hidden');
 }
 
-// ── Order History (Customer) ──
+// ══════════════════════════════════════════
+//  ORDER HISTORY (Customer)
+// ══════════════════════════════════════════
+
 async function loadOrderHistory() {
     if (!currentUser) return;
-    var result = await db.from('orders')
-        .select('*')
-        .eq('customer_email', currentUser.email)
-        .order('created_at', { ascending: false });
-
     var c = document.getElementById('orderHistoryContainer');
-    if (!result.data || !result.data.length) {
-        c.innerHTML = '<p style="text-align:center; color:var(--text-light)">No orders yet.</p>';
-        return;
+    c.innerHTML = '<p style="text-align:center;color:var(--text-light)">Loading orders...</p>';
+    try {
+        var res = await _supabase
+            .from('orders')
+            .select('order_id, in_game_name, player_uid, topup_label, price, status, created_at')
+            .eq('customer_email', currentUser.email)
+            .order('created_at', { ascending: false });
+
+        if (res.error) throw res.error;
+        if (!res.data || !res.data.length) {
+            c.innerHTML = '<p style="text-align:center;color:var(--text-light)">No orders yet.</p>';
+            return;
+        }
+        c.innerHTML =
+            '<div style="overflow-x:auto">' +
+            '<table class="order-table"><thead><tr>' +
+            '<th>Status</th><th>Order ID</th><th>Name</th><th>UID</th><th>Package</th><th>Amount</th><th>Date</th>' +
+            '</tr></thead><tbody>' +
+            res.data.map(function(o) {
+                return '<tr>' +
+                    '<td><span class="status-badge ' + (o.status === 'complete' ? 'status-complete' : 'status-pending') + '">' + o.status + '</span></td>' +
+                    '<td style="font-size:0.7rem;white-space:nowrap">' + o.order_id + '</td>' +
+                    '<td>' + o.in_game_name + '</td>' +
+                    '<td>' + o.player_uid + '</td>' +
+                    '<td>' + o.topup_label + '</td>' +
+                    '<td>₹' + o.price + '</td>' +
+                    '<td style="white-space:nowrap">' + new Date(o.created_at).toLocaleDateString('en-IN') + '</td>' +
+                    '</tr>';
+            }).join('') +
+            '</tbody></table></div>';
+    } catch(e) {
+        c.innerHTML = '<p style="text-align:center;color:#ef4444">Failed to load orders. Check connection.</p>';
     }
-    c.innerHTML = '<table class="order-table"><thead><tr>' +
-        '<th>Status</th><th>Order ID</th><th>Name</th><th>UID</th><th>Package</th><th>Amount</th><th>Date</th>' +
-        '</tr></thead><tbody>' +
-        result.data.map(function(o) {
-            return '<tr>' +
-                '<td><span class="status-badge ' + (o.status === 'complete' ? 'status-complete' : 'status-pending') + '">' + o.status + '</span></td>' +
-                '<td style="font-size:0.75rem">' + o.order_id + '</td>' +
-                '<td>' + o.in_game_name + '</td>' +
-                '<td>' + o.player_uid + '</td>' +
-                '<td>' + o.topup_label + '</td>' +
-                '<td>₹' + o.price + '</td>' +
-                '<td>' + new Date(o.created_at).toLocaleDateString('en-IN') + '</td></tr>';
-        }).join('') + '</tbody></table>';
 }
 
-// ── Admin: All Orders ──
-async function loadAllOrders() {
-    var result = await db.from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+// ══════════════════════════════════════════
+//  ADMIN — ALL ORDERS
+// ══════════════════════════════════════════
 
+async function loadAllOrders() {
     var c = document.getElementById('adminOrdersContainer');
-    if (!result.data || !result.data.length) {
-        c.innerHTML = '<p style="padding:12px; text-align:center">No orders yet.</p>';
-        return;
+    c.innerHTML = '<p style="padding:12px;text-align:center">Loading orders...</p>';
+    try {
+        var res = await _supabase
+            .from('orders')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (res.error) throw res.error;
+        if (!res.data || !res.data.length) {
+            c.innerHTML = '<p style="padding:12px;text-align:center;color:var(--text-light)">No orders yet.</p>';
+            return;
+        }
+        c.innerHTML = res.data.map(function(o) {
+            return '<div class="admin-order-card ' + (o.status === 'complete' ? 'complete' : '') + '">' +
+                '<p><strong>🆔</strong> ' + o.order_id + '</p>' +
+                '<p><strong>👤</strong> ' + o.customer_email + '</p>' +
+                '<p><strong>🧑</strong> ' + o.in_game_name + '</p>' +
+                '<p><strong>UID</strong> ' + o.player_uid + '</p>' +
+                '<p><strong>💎</strong> ' + o.topup_label + '</p>' +
+                '<p><strong>💰</strong> ₹' + o.price + '</p>' +
+                '<p><strong>📅</strong> ' + new Date(o.created_at).toLocaleString('en-IN') + '</p>' +
+                '<p><strong>📌</strong> <span class="status-badge ' +
+                (o.status === 'complete' ? 'status-complete' : 'status-pending') + '">' + o.status + '</span></p>' +
+                (o.screenshot
+                    ? '<details><summary style="cursor:pointer;font-weight:600;margin:6px 0">📸 View Screenshot</summary>' +
+                      '<img src="' + o.screenshot + '" style="max-width:100%;border-radius:8px;margin-top:6px"></details>'
+                    : '') +
+                '<div class="admin-actions">' +
+                (o.status === 'pending'
+                    ? '<button class="btn btn-sm btn-success" onclick="markComplete(\'' + o.id + '\')">✅ Complete</button>'
+                    : '<button class="btn btn-sm btn-warning" onclick="markPending(\'' + o.id + '\')">⏳ Pending</button>') +
+                '<button class="btn btn-sm btn-danger" onclick="deleteOrder(\'' + o.id + '\')">🗑 Delete</button>' +
+                '</div></div>';
+        }).join('');
+    } catch(e) {
+        c.innerHTML = '<p style="padding:12px;text-align:center;color:#ef4444">Failed to load orders.</p>';
     }
-    c.innerHTML = result.data.map(function(o) {
-        return '<div class="admin-order-card ' + (o.status === 'complete' ? 'complete' : '') + '">' +
-            '<p><strong>🆔</strong> ' + o.order_id + '</p>' +
-            '<p><strong>👤</strong> ' + o.customer_email + '</p>' +
-            '<p><strong>🧑</strong> ' + o.in_game_name + '</p>' +
-            '<p><strong>UID</strong> ' + o.player_uid + '</p>' +
-            '<p><strong>💎</strong> ' + o.topup_label + '</p>' +
-            '<p><strong>💰</strong> ₹' + o.price + '</p>' +
-            '<p><strong>📅</strong> ' + new Date(o.created_at).toLocaleString('en-IN') + '</p>' +
-            '<p><strong>📌</strong> <span class="status-badge ' + (o.status === 'complete' ? 'status-complete' : 'status-pending') + '">' + o.status + '</span></p>' +
-            (o.screenshot ? '<details><summary>📸 Screenshot</summary><img src="' + o.screenshot + '" style="max-width:100%;border-radius:8px;margin-top:6px"></details>' : '') +
-            '<div class="admin-actions">' +
-            (o.status === 'pending'
-                ? '<button class="btn btn-sm btn-success" onclick="markComplete(\'' + o.id + '\')">✅ Complete</button>'
-                : '<button class="btn btn-sm btn-warning" onclick="markPending(\'' + o.id + '\')">⏳ Pending</button>') +
-            '<button class="btn btn-sm btn-danger" onclick="deleteOrder(\'' + o.id + '\')">🗑 Delete</button>' +
-            '</div></div>';
-    }).join('');
 }
 
 async function markComplete(id) { await updateOrderStatus(id, 'complete'); }
 async function markPending(id)  { await updateOrderStatus(id, 'pending');  }
 
 async function updateOrderStatus(id, status) {
-    var result = await db.from('orders').update({ status: status }).eq('id', id);
-    if (result.error) return showToast('❌ Failed to update', 'error');
-    showToast('Order marked ' + status, 'success');
-    loadAllOrders();
+    try {
+        var res = await _supabase.from('orders').update({ status: status }).eq('id', id);
+        if (res.error) throw res.error;
+        showToast('Order marked ' + status + '!', 'success');
+        loadAllOrders();
+    } catch(e) {
+        showToast('❌ Failed to update order', 'error');
+    }
 }
 
 async function deleteOrder(id) {
-    if (!confirm('Delete this order?')) return;
-    var result = await db.from('orders').delete().eq('id', id);
-    if (result.error) return showToast('❌ Failed to delete', 'error');
-    showToast('🗑 Deleted', 'success');
-    loadAllOrders();
+    if (!confirm('Delete this order? This cannot be undone.')) return;
+    try {
+        var res = await _supabase.from('orders').delete().eq('id', id);
+        if (res.error) throw res.error;
+        showToast('🗑 Order deleted', 'success');
+        loadAllOrders();
+    } catch(e) {
+        showToast('❌ Failed to delete order', 'error');
+    }
 }
 
-// ── Admin: Stock ──
+// ══════════════════════════════════════════
+//  ADMIN — STOCK MANAGEMENT
+// ══════════════════════════════════════════
+
 async function loadStockManagement() {
     var c = document.getElementById('stockManagementContainer');
     if (!c) return;
+    c.innerHTML = '<p style="color:var(--text-light)">Loading stock...</p>';
     var stock = await getStockStatus();
-    var html  = '<h4 style="margin-bottom:8px">Diamonds</h4>';
+    var html  = '<h4 style="margin-bottom:8px;color:var(--primary-dark)">💎 Diamonds</h4>';
+
     diamondTopups.forEach(function(item, i) {
         var inStock = stock['diamond_' + i] !== false;
         html += '<div class="stock-item">' +
                 '<span>💎 ' + item.diamonds + ' — ₹' + item.price + '</span>' +
-                '<button class="btn btn-sm ' + (inStock ? 'btn-warning' : 'btn-success') + '" onclick="toggleStock(\'diamond\',' + i + ')">' +
-                (inStock ? 'Mark Out' : 'Mark In') + '</button></div>';
+                '<button class="btn btn-sm ' + (inStock ? 'btn-warning' : 'btn-success') +
+                '" onclick="toggleStock(\'diamond\',' + i + ')">' +
+                (inStock ? '⛔ Mark Out' : '✅ Mark In') + '</button></div>';
     });
-    html += '<h4 style="margin-top:12px;margin-bottom:8px">Memberships</h4>';
+
+    html += '<h4 style="margin-top:14px;margin-bottom:8px;color:var(--primary-dark)">🏅 Memberships</h4>';
     membershipTopups.forEach(function(item, i) {
         var inStock = stock['membership_' + i] !== false;
         html += '<div class="stock-item">' +
                 '<span>' + item.icon + ' ' + item.name + ' — ₹' + item.price + '</span>' +
-                '<button class="btn btn-sm ' + (inStock ? 'btn-warning' : 'btn-success') + '" onclick="toggleStock(\'membership\',' + i + ')">' +
-                (inStock ? 'Mark Out' : 'Mark In') + '</button></div>';
+                '<button class="btn btn-sm ' + (inStock ? 'btn-warning' : 'btn-success') +
+                '" onclick="toggleStock(\'membership\',' + i + ')">' +
+                (inStock ? '⛔ Mark Out' : '✅ Mark In') + '</button></div>';
     });
     c.innerHTML = html;
 }
 
 async function toggleStock(type, index) {
-    var stock   = await getStockStatus();
-    var key     = type + '_' + index;
-    var newVal  = !stock[key];
+    var stock  = await getStockStatus();
+    var key    = type + '_' + index;
+    var newVal = !stock[key];
     await setStockItem(key, newVal);
-    renderTopupGrids();
-    loadStockManagement();
     showToast(newVal ? '✅ Marked In Stock' : '⛔ Marked Out of Stock', 'success');
+    loadStockManagement();
 }
 
 async function setAllOutOfStock() {
     if (!confirm('Mark ALL items out of stock?')) return;
-    var promises = [];
-    diamondTopups.forEach(function(_, i)    { promises.push(setStockItem('diamond_' + i, false)); });
-    membershipTopups.forEach(function(_, i) { promises.push(setStockItem('membership_' + i, false)); });
-    await Promise.all(promises);
-    renderTopupGrids();
+    var tasks = [];
+    diamondTopups.forEach(function(_, i)    { tasks.push(setStockItem('diamond_' + i, false)); });
+    membershipTopups.forEach(function(_, i) { tasks.push(setStockItem('membership_' + i, false)); });
+    await Promise.all(tasks);
+    showToast('⛔ All items set Out of Stock', 'success');
     loadStockManagement();
-    showToast('⛔ All items set to Out of Stock', 'success');
-} 
-async function resetAllInStock() {
-    var promises = [];
-    diamondTopups.forEach(function(_, i)    { promises.push(setStockItem('diamond_' + i, true)); });
-    membershipTopups.forEach(function(_, i) { promises.push(setStockItem('membership_' + i, true)); });
-    await Promise.all(promises);
-    renderTopupGrids();
-    loadStockManagement();
-    showToast('✅ All items now In Stock', 'success');
 }
 
-// ── Init ──
+async function resetAllInStock() {
+    var tasks = [];
+    diamondTopups.forEach(function(_, i)    { tasks.push(setStockItem('diamond_' + i, true)); });
+    membershipTopups.forEach(function(_, i) { tasks.push(setStockItem('membership_' + i, true)); });
+    await Promise.all(tasks);
+    showToast('✅ All items now In Stock', 'success');
+    loadStockManagement();
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+
 document.addEventListener('DOMContentLoaded', function() {
     setupScreenshotUploader();
     document.getElementById('loadingSection').classList.remove('hidden');
