@@ -6,7 +6,7 @@
 // ── Config ──
 var SUPABASE_URL = 'https://wrabhrbvnipnxzeebadm.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_0iST9QwDsaLU2sKmo4qvhQ_FmXgMFp0';
-var ADMIN_EMAIL  = 'admin@aadityatopup.com';
+var ADMIN_EMAIL  = 'aadityadas4000@gmail.com';
 
 // ── Init Supabase ──
 var _supabase;
@@ -17,10 +17,15 @@ try {
 }
 
 // ── State ──
-var currentUser            = null;
-var isAdmin                = false;
-var selectedTopup          = null;
+var currentUser             = null;
+var isAdmin                 = false;
+var selectedTopup           = null;
 var paymentScreenshotBase64 = null;
+
+// ── Notification Channels ──
+var _userChannel    = null;
+var _adminChannel   = null;
+var _newOrderCount  = 0;
 
 // ── Data ──
 var diamondTopups = [
@@ -52,6 +57,136 @@ function showToast(msg, type, duration) {
     t._t = setTimeout(function() { t.classList.remove('show'); }, duration);
 }
 
+// ══════════════════════════════════════════
+//  NOTIFICATIONS
+// ══════════════════════════════════════════
+
+// ── Request browser notification permission ──
+function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+}
+
+// ── Send browser notification ──
+function sendBrowserNotification(title, body) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    try {
+        new Notification(title, {
+            body: body,
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💎</text></svg>'
+        });
+    } catch(e) { console.log('Notification error:', e); }
+}
+
+// ── Update admin notification badge ──
+function updateNotificationBadge() {
+    _newOrderCount++;
+    var badge = document.getElementById('notifBadge');
+    if (badge) {
+        badge.textContent = _newOrderCount;
+        badge.classList.remove('hidden');
+    }
+    var bell = document.getElementById('notifBell');
+    if (bell) bell.style.animation = 'bellRing 0.5s ease 3';
+}
+
+function clearNotificationBadge() {
+    _newOrderCount = 0;
+    var badge = document.getElementById('notifBadge');
+    if (badge) badge.classList.add('hidden');
+}
+
+// ── Subscribe user to their order updates (Supabase Realtime) ──
+function subscribeToOrderUpdates() {
+    if (!currentUser) return;
+    if (_userChannel) { _supabase.removeChannel(_userChannel); _userChannel = null; }
+
+    _userChannel = _supabase
+        .channel('user-orders-' + currentUser.id)
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'orders'
+        }, function(payload) {
+            // Only notify if it's this user's order and it just became complete
+            if (payload.new &&
+                payload.new.customer_email === currentUser.email &&
+                payload.new.status === 'complete' &&
+                payload.old.status !== 'complete') {
+
+                // Browser notification
+                sendBrowserNotification(
+                    '✅ Order Complete! 💎',
+                    'Your ' + payload.new.topup_label + ' has been delivered! Check your Free Fire account.'
+                );
+
+                // In-app toast
+                showToast('🎉 Your order is complete! Diamonds delivered!', 'success', 6000);
+
+                // Refresh order history
+                loadOrderHistory();
+
+                // Show in-app popup
+                showOrderCompletePopup(payload.new);
+            }
+        })
+        .subscribe();
+}
+
+// ── Subscribe admin to new orders (Supabase Realtime) ──
+function subscribeToNewOrders() {
+    if (_adminChannel) { _supabase.removeChannel(_adminChannel); _adminChannel = null; }
+
+    _adminChannel = _supabase
+        .channel('admin-new-orders')
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'orders'
+        }, function(payload) {
+            if (!payload.new) return;
+
+            // Browser notification
+            sendBrowserNotification(
+                '🔔 New Order Received!',
+                payload.new.customer_email + ' ordered ' + payload.new.topup_label + ' — ₹' + payload.new.price
+            );
+
+            // In-app toast
+            showToast('🔔 New order! ' + payload.new.topup_label + ' — ₹' + payload.new.price, 'success', 6000);
+
+            // Update badge
+            updateNotificationBadge();
+
+            // Refresh orders list
+            loadAllOrders();
+        })
+        .subscribe();
+}
+
+// ── Unsubscribe all channels ──
+function unsubscribeAll() {
+    if (_userChannel)  { try { _supabase.removeChannel(_userChannel);  } catch(e){} _userChannel  = null; }
+    if (_adminChannel) { try { _supabase.removeChannel(_adminChannel); } catch(e){} _adminChannel = null; }
+}
+
+// ── Show order complete popup for user ──
+function showOrderCompletePopup(order) {
+    var modal = document.getElementById('orderCompleteModal');
+    var text  = document.getElementById('orderCompleteText');
+    if (!modal || !text) return;
+    text.textContent = 'Your ' + order.topup_label + ' has been delivered to ' + order.in_game_name + '! Open Free Fire to check. 💎';
+    modal.classList.remove('hidden');
+}
+
+function closeOrderCompleteModal() {
+    var modal = document.getElementById('orderCompleteModal');
+    if (modal) modal.classList.add('hidden');
+}
+
 function togglePasswordVisibility() {
     var input = document.getElementById('authPassword');
     var btn   = document.getElementById('authPasswordToggle');
@@ -61,7 +196,7 @@ function togglePasswordVisibility() {
 
 function isAllowedEmail(email) {
     email = email.trim().toLowerCase();
-    if (email === ADMIN_EMAIL) return true;
+    if (email === ADMIN_EMAIL) return true; // admin Gmail always allowed
     return email.endsWith('@gmail.com') && email.length > '@gmail.com'.length;
 }
 
@@ -168,6 +303,7 @@ async function handleSignIn() {
 }
 
 async function handleLogout() {
+    unsubscribeAll();
     try { await _supabase.auth.signOut(); } catch(e) {}
     currentUser             = null;
     isAdmin                 = false;
@@ -205,18 +341,27 @@ _supabase.auth.onAuthStateChange(function(event, session) {
     if (session && session.user) {
         currentUser = session.user;
         isAdmin     = (currentUser.email === ADMIN_EMAIL);
+
+        // Request notification permission on login
+        requestNotificationPermission();
+
         if (isAdmin) {
             showAdminPanel();
             loadAllOrders();
             loadStockManagement();
+            // Admin listens for new orders
+            subscribeToNewOrders();
         } else {
             showCustomerDashboard();
             renderTopupGrids();
             loadOrderHistory();
+            // User listens for their order status changes
+            subscribeToOrderUpdates();
         }
     } else {
         currentUser = null;
         isAdmin     = false;
+        unsubscribeAll();
         showAuthSection();
     }
 });
@@ -376,8 +521,7 @@ function compressImage(dataUrl, maxW, quality, cb) {
     };
     img.onerror = function() { showToast('Failed to process image', 'error'); };
     img.src = dataUrl;
-}
-
+                }
 // ══════════════════════════════════════════
 //  PLACE ORDER
 // ══════════════════════════════════════════
@@ -411,6 +555,10 @@ async function confirmPlaceOrder() {
             btn.textContent = '✅ Confirm & Place Order';
             return;
         }
+
+        // ── Send email notification to admin ──
+        sendAdminEmailNotification(order);
+
         document.getElementById('thankYouModal').classList.remove('hidden');
         resetAfterOrder();
         loadOrderHistory();
@@ -419,6 +567,27 @@ async function confirmPlaceOrder() {
         btn.disabled    = false;
         btn.textContent = '✅ Confirm & Place Order';
     }
+}
+
+// ── Send email to admin (aadityadas4000@gmail.com) when new order ──
+function sendAdminEmailNotification(order) {
+    try {
+        fetch('https://formsubmit.co/ajax/aadityadas4000@gmail.com', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                _subject:      '🔔 New Order! ' + order.topup_label + ' — ₹' + order.price,
+                'Order ID':    order.order_id,
+                'Customer':    order.customer_email,
+                'In-Game Name': order.in_game_name,
+                'Player UID':  order.player_uid,
+                'Package':     order.topup_label,
+                'Amount':      '₹' + order.price,
+                'Status':      'Pending',
+                'Message':     'A new order has been placed on Aaditya Top Up Centre. Please process it!'
+            })
+        });
+    } catch(e) { console.log('Email notification failed:', e); }
 }
 
 function resetAfterOrder() {
@@ -441,7 +610,7 @@ function resetAfterOrder() {
 
 function closeThankYou() {
     document.getElementById('thankYouModal').classList.add('hidden');
-}
+} 
 
 // ══════════════════════════════════════════
 //  ORDER HISTORY (Customer)
@@ -554,9 +723,8 @@ async function deleteOrder(id) {
     } catch(e) {
         showToast('❌ Failed to delete order', 'error');
     }
-}
-
-// ══════════════════════════════════════════
+        }
+ // ══════════════════════════════════════════
 //  ADMIN — STOCK MANAGEMENT
 // ══════════════════════════════════════════
 
