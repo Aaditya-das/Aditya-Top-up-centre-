@@ -521,7 +521,8 @@ function compressImage(dataUrl, maxW, quality, cb) {
     };
     img.onerror = function() { showToast('Failed to process image', 'error'); };
     img.src = dataUrl;
-                }
+}
+
 // ══════════════════════════════════════════
 //  PLACE ORDER
 // ══════════════════════════════════════════
@@ -610,7 +611,7 @@ function resetAfterOrder() {
 
 function closeThankYou() {
     document.getElementById('thankYouModal').classList.add('hidden');
-} 
+}
 
 // ══════════════════════════════════════════
 //  ORDER HISTORY (Customer)
@@ -723,8 +724,9 @@ async function deleteOrder(id) {
     } catch(e) {
         showToast('❌ Failed to delete order', 'error');
     }
-        }
- // ══════════════════════════════════════════
+}
+
+// ══════════════════════════════════════════
 //  ADMIN — STOCK MANAGEMENT
 // ══════════════════════════════════════════
 
