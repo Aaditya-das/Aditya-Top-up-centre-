@@ -326,9 +326,9 @@ _supabase.auth.onAuthStateChange(function(event, session) {
         isAdmin=(currentUser.email===ADMIN_EMAIL);
         requestNotificationPermission();
         if (isAdmin) {
-            showAdminPanel(); loadAllOrders(); loadStockManagement(); loadAdminReviews(); subscribeToNewOrders();
+            showAdminPanel(); loadAllOrders(); loadStockManagement(); loadAdminReviews(); loadVisitorStats(); subscribeToNewOrders();
         } else {
-            showCustomerDashboard(); renderTopupGrids(); loadOrderHistory(); loadReviews('freeFire'); updateReviewPackages(); subscribeToOrderUpdates();
+            showCustomerDashboard(); renderTopupGrids(); loadOrderHistory(); loadReviews('freeFire'); updateReviewPackages(); subscribeToOrderUpdates(); trackVisitor();
         }
     } else {
         currentUser=null; isAdmin=false; unsubscribeAll(); showAuthSection();
@@ -445,12 +445,12 @@ function proceedToPayment() {
         var name = document.getElementById('pubgName').value.trim();
         var uid  = document.getElementById('pubgID').value.trim();
         if (!name) { showFieldError('pubgName', 'Enter your PUBG player name'); valid = false; }
-        if (!uid || uid.length < 5) { showFieldError('pubgID', 'Enter a valid PUBG Player ID (min 5 digits)'); valid = false; }
+        if (!uid || uid.length < 5) { showFieldError('pubgID', 'Enter a valid PUBG Player ID (5 to 12 digits)'); valid = false; }
     } else {
         var name = document.getElementById('inGameName').value.trim();
         var uid  = document.getElementById('playerUID').value.trim();
         if (!name) { showFieldError('inGameName', 'Enter your Free Fire in-game name'); valid = false; }
-        if (!uid || uid.length < 11 || uid.length > 12) { showFieldError('playerUID', 'Free Fire UID must be 11 to 12 digits only'); valid = false; }
+        if (!uid || uid.length < 8 || uid.length > 11) { showFieldError('playerUID', 'Free Fire UID must be 8 to 11 digits (check your profile)'); valid = false; }
     }
     if (!valid) return;
     document.getElementById('paymentSection').classList.remove('hidden');
@@ -513,9 +513,9 @@ async function confirmPlaceOrder() {
     }
     if (!name)                    return showToast('⚠️ Enter your in-game name','error');
     if (selectedTopup.game === 'pubg') {
-        if (!uid || uid.length < 5) return showToast('⚠️ Enter a valid PUBG Player ID','error');
+        if (!uid || uid.length < 5 || uid.length > 12) return showToast('⚠️ PUBG Player ID must be 5 to 12 digits','error');
     } else {
-        if (!uid || uid.length < 11 || uid.length > 12) return showToast('⚠️ Free Fire UID must be 11 to 12 digits','error');
+        if (!uid || uid.length < 8 || uid.length > 11) return showToast('⚠️ Free Fire UID must be 8 to 11 digits','error');
     }
     if (!paymentScreenshotBase64) {
         // Show error on upload area
@@ -867,6 +867,7 @@ async function rejectReview(id){
 document.addEventListener('DOMContentLoaded', function(){
     setupScreenshotUploader();
     updateReviewPackages();
+    trackVisitor();
     document.getElementById('loadingSection').classList.remove('hidden');
     document.getElementById('authSection').classList.add('hidden');
     _authTimeout=setTimeout(function(){
@@ -914,4 +915,147 @@ function showSuccess(fieldId) {
     if (!field) return;
     field.style.borderColor = '#10b981';
     field.style.boxShadow   = '0 0 0 3px rgba(16,185,129,0.15)';
+}
+
+// ══════════════════════════════════════════
+//  VISITOR TRACKING SYSTEM
+// ══════════════════════════════════════════
+
+function getDeviceType() {
+    var ua = navigator.userAgent;
+    if (/tablet|ipad|playbook|silk/i.test(ua)) return 'Tablet 📱';
+    if (/mobile|iphone|ipod|android|blackberry|mini|windows\sce|palm/i.test(ua)) return 'Mobile 📱';
+    return 'Desktop 💻';
+}
+
+function getOrCreateSessionId() {
+    var sid = sessionStorage.getItem('aatc_sid');
+    if (!sid) {
+        sid = 'v_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem('aatc_sid', sid);
+    }
+    return sid;
+}
+
+async function trackVisitor() {
+    try {
+        var sid = getOrCreateSessionId();
+        // Don't track if already tracked this session
+        if (sessionStorage.getItem('aatc_tracked')) return;
+        await _supabase.from('visitors').insert([{
+            session_id:  sid,
+            device_type: getDeviceType()
+        }]);
+        sessionStorage.setItem('aatc_tracked', '1');
+    } catch(e) { /* silent fail */ }
+}
+
+async function loadVisitorStats() {
+    var c = document.getElementById('visitorStatsContainer');
+    if (!c) return;
+    c.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:12px;">Loading stats…</p>';
+    try {
+        var now   = new Date();
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        var week  = new Date(now.getFullYear(), now.getMonth(), now.getDate()-7).toISOString();
+        var month = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+        // Get all visitor data
+        var resAll   = await _supabase.from('visitors').select('*').order('visited_at', {ascending:false});
+        var all      = resAll.data || [];
+        var todayArr = all.filter(function(v){ return v.visited_at >= today; });
+        var weekArr  = all.filter(function(v){ return v.visited_at >= week; });
+        var monthArr = all.filter(function(v){ return v.visited_at >= month; });
+
+        // Unique sessions
+        var uniqueAll   = new Set(all.map(function(v){ return v.session_id; })).size;
+        var uniqueToday = new Set(todayArr.map(function(v){ return v.session_id; })).size;
+        var uniqueWeek  = new Set(weekArr.map(function(v){ return v.session_id; })).size;
+        var uniqueMonth = new Set(monthArr.map(function(v){ return v.session_id; })).size;
+
+        // Device breakdown
+        var mobile  = all.filter(function(v){ return v.device_type && v.device_type.includes('Mobile'); }).length;
+        var desktop = all.filter(function(v){ return v.device_type && v.device_type.includes('Desktop'); }).length;
+        var tablet  = all.filter(function(v){ return v.device_type && v.device_type.includes('Tablet'); }).length;
+        var total   = all.length || 1;
+
+        // Last 7 days chart data
+        var days = [];
+        for (var i=6; i>=0; i--) {
+            var d    = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i);
+            var dEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i+1);
+            var cnt  = all.filter(function(v){ return v.visited_at >= d.toISOString() && v.visited_at < dEnd.toISOString(); }).length;
+            var label= ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+            days.push({label:label, count:cnt});
+        }
+        var maxDay = Math.max.apply(null, days.map(function(d){ return d.count; })) || 1;
+
+        // Recent visitors
+        var recent = all.slice(0, 5);
+
+        c.innerHTML =
+        // Stats Cards
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'+
+            statCard('👁️', 'Today', uniqueToday, 'visitors') +
+            statCard('📅', 'This Week', uniqueWeek, 'visitors') +
+            statCard('🗓️', 'This Month', uniqueMonth, 'visitors') +
+            statCard('🌍', 'All Time', uniqueAll, 'visitors') +
+        '</div>'+
+
+        // Device breakdown
+        '<div style="background:var(--bg-soft);border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid var(--border);">'+
+        '<p style="font-weight:700;font-size:.85rem;margin-bottom:10px;color:var(--text-mid);">📱 Device Breakdown</p>'+
+        deviceBar('Mobile 📱', mobile, total, '#3b82f6') +
+        deviceBar('Desktop 💻', desktop, total, '#8b5cf6') +
+        deviceBar('Tablet 🖥️', tablet, total, '#10b981') +
+        '</div>'+
+
+        // Last 7 days chart
+        '<div style="background:var(--bg-soft);border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid var(--border);">'+
+        '<p style="font-weight:700;font-size:.85rem;margin-bottom:12px;color:var(--text-mid);">📊 Last 7 Days</p>'+
+        '<div style="display:flex;align-items:flex-end;gap:6px;height:80px;">'+
+        days.map(function(d){
+            var h = Math.max(4, Math.round((d.count/maxDay)*70));
+            return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">'+
+                '<span style="font-size:.65rem;font-weight:700;color:var(--primary);">'+d.count+'</span>'+
+                '<div style="width:100%;height:'+h+'px;background:linear-gradient(135deg,#1a56db,#7c3aed);border-radius:4px 4px 0 0;"></div>'+
+                '<span style="font-size:.62rem;color:var(--text-light);">'+d.label+'</span>'+
+            '</div>';
+        }).join('')+
+        '</div></div>'+
+
+        // Recent activity
+        '<div style="background:var(--bg-soft);border-radius:12px;padding:14px;border:1px solid var(--border);">'+
+        '<p style="font-weight:700;font-size:.85rem;margin-bottom:10px;color:var(--text-mid);">🕐 Recent Visitors</p>'+
+        (recent.length ? recent.map(function(v){
+            var t = new Date(v.visited_at);
+            return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.78rem;">'+
+                '<span>'+v.device_type+'</span>'+
+                '<span style="color:var(--text-light);">'+t.toLocaleString('en-IN')+'</span>'+
+            '</div>';
+        }).join('') : '<p style="text-align:center;color:var(--text-light);">No data yet</p>') +
+        '</div>';
+
+    } catch(e) {
+        c.innerHTML = '<p style="color:var(--danger);padding:12px;text-align:center;">Failed to load stats.</p>';
+    }
+}
+
+function statCard(icon, label, value, unit) {
+    return '<div style="background:#fff;border-radius:12px;padding:14px;text-align:center;border:1px solid var(--border-blue);box-shadow:var(--shadow-sm);">'+
+        '<div style="font-size:1.4rem;">'+icon+'</div>'+
+        '<div style="font-size:1.6rem;font-weight:900;color:var(--primary-dark);line-height:1.2;">'+value+'</div>'+
+        '<div style="font-size:.7rem;color:var(--text-light);font-weight:600;">'+label+'</div>'+
+    '</div>';
+}
+
+function deviceBar(label, count, total, color) {
+    var pct = Math.round((count/total)*100);
+    return '<div style="margin-bottom:8px;">'+
+        '<div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px;">'+
+        '<span style="font-weight:600;">'+label+'</span>'+
+        '<span style="color:var(--text-light);">'+count+' ('+pct+'%)</span></div>'+
+        '<div style="background:var(--border);border-radius:20px;height:8px;overflow:hidden;">'+
+        '<div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:20px;transition:width .8s ease;"></div>'+
+        '</div></div>';
 }
