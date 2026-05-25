@@ -236,42 +236,71 @@ function showAdminPanel() {
 }
 
 async function handleSignUp() {
+    clearAllErrors();
     var email    = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value.trim();
-    if (!email&&!password) return showToast('⚠️ Please enter your email and password','error');
-    if (!email)            return showToast('⚠️ Please enter your email address','error');
-    if (!password)         return showToast('⚠️ Please enter a password','error');
-    if (!isAllowedEmail(email)) return showToast('❌ Only Gmail addresses allowed e.g. you@gmail.com','error');
-    if (password.length<6)      return showToast('❌ Password too short — use at least 6 characters','error');
-    showToast('⏳ Creating your account…','');
+    var valid = true;
+    if (!email) {
+        showFieldError('authEmail', 'Please enter your Gmail address');
+        valid = false;
+    } else if (!isAllowedEmail(email)) {
+        showFieldError('authEmail', 'Only Gmail addresses allowed — e.g. yourname@gmail.com');
+        valid = false;
+    }
+    if (!password) {
+        showFieldError('authPassword', 'Please enter a password');
+        valid = false;
+    } else if (password.length < 6) {
+        showFieldError('authPassword', 'Password too short — use at least 6 characters');
+        valid = false;
+    }
+    if (!valid) return;
+    showToast('⏳ Creating your account…', '');
     try {
         var res = await _supabase.auth.signUp({email:email, password:password});
         if (res.error) {
             var msg = res.error.message.toLowerCase();
-            if (msg.includes('already')) showToast('❌ Email already registered — try Sign In instead','error');
-            else showToast('❌ '+res.error.message,'error');
-        } else showToast('✅ Account created! Welcome!','success');
-    } catch(e){ showToast('❌ Connection error — check your internet','error'); }
+            if (msg.includes('already')) showFieldError('authEmail', 'This email is already registered — try Sign In instead');
+            else showFieldError('authEmail', res.error.message);
+        } else {
+            showSuccess('authEmail');
+            showToast('✅ Account created! Welcome!', 'success');
+        }
+    } catch(e) { showToast('❌ Connection error — check your internet', 'error'); }
 }
 
 async function handleSignIn() {
+    clearAllErrors();
     var email    = document.getElementById('authEmail').value.trim();
     var password = document.getElementById('authPassword').value.trim();
-    if (!email&&!password) return showToast('⚠️ Please enter your email and password','error');
-    if (!email)            return showToast('⚠️ Please enter your email address','error');
-    if (!password)         return showToast('⚠️ Please enter your password','error');
-    if (!isAllowedEmail(email)) return showToast('❌ Only Gmail addresses allowed e.g. you@gmail.com','error');
-    showToast('⏳ Signing you in…','');
+    var valid = true;
+    if (!email) {
+        showFieldError('authEmail', 'Please enter your Gmail address');
+        valid = false;
+    } else if (!isAllowedEmail(email)) {
+        showFieldError('authEmail', 'Only Gmail addresses allowed — e.g. yourname@gmail.com');
+        valid = false;
+    }
+    if (!password) {
+        showFieldError('authPassword', 'Please enter your password');
+        valid = false;
+    }
+    if (!valid) return;
+    showToast('⏳ Signing you in…', '');
     try {
-        var res = await _supabase.auth.signInWithPassword({email:email,password:password});
+        var res = await _supabase.auth.signInWithPassword({email:email, password:password});
         if (res.error) {
             var msg = res.error.message.toLowerCase();
-            if (msg.includes('invalid')||msg.includes('wrong')) showToast('❌ Wrong password — please try again','error');
-            else if (msg.includes('not found')||msg.includes('no user')) showToast('❌ No account found — please Sign Up first','error');
-            else if (msg.includes('too many')||msg.includes('rate')) showToast('⚠️ Too many attempts — wait a few minutes','error');
-            else showToast('❌ '+res.error.message,'error');
+            if (msg.includes('invalid') || msg.includes('wrong'))
+                showFieldError('authPassword', 'Wrong password — please try again');
+            else if (msg.includes('not found') || msg.includes('no user'))
+                showFieldError('authEmail', 'No account found with this email — please Sign Up first');
+            else if (msg.includes('too many') || msg.includes('rate'))
+                showToast('⚠️ Too many attempts — wait a few minutes and try again', 'error', 5000);
+            else
+                showToast('❌ ' + res.error.message, 'error');
         }
-    } catch(e){ showToast('❌ Connection error — check your internet','error'); }
+    } catch(e) { showToast('❌ Connection error — check your internet', 'error'); }
 }
 
 async function handleLogout() {
@@ -405,18 +434,25 @@ function selectTopup(el, type, index) {
 // ══════════════════════════════════════════
 
 function proceedToPayment() {
-    if (!selectedTopup) return showToast('⚠️ Select a package first','error');
-    if (selectedTopup.game==='pubg') {
-        var name=document.getElementById('pubgName').value.trim();
-        var uid =document.getElementById('pubgID').value.trim();
-        if (!name) return showToast('⚠️ Enter your PUBG player name','error');
-        if (!uid||uid.length<5) return showToast('⚠️ Enter a valid PUBG Player ID','error');
-    } else {
-        var name=document.getElementById('inGameName').value.trim();
-        var uid =document.getElementById('playerUID').value.trim();
-        if (!name) return showToast('⚠️ Enter your Free Fire name','error');
-        if (!uid||uid.length<6) return showToast('⚠️ Enter a valid Free Fire UID','error');
+    clearAllErrors();
+    if (!selectedTopup) {
+        showToast('⚠️ Please select a package first!', 'error');
+        window.scrollTo({top:0, behavior:'smooth'});
+        return;
     }
+    var valid = true;
+    if (selectedTopup.game === 'pubg') {
+        var name = document.getElementById('pubgName').value.trim();
+        var uid  = document.getElementById('pubgID').value.trim();
+        if (!name) { showFieldError('pubgName', 'Enter your PUBG player name'); valid = false; }
+        if (!uid || uid.length < 5) { showFieldError('pubgID', 'Enter a valid PUBG Player ID (min 5 digits)'); valid = false; }
+    } else {
+        var name = document.getElementById('inGameName').value.trim();
+        var uid  = document.getElementById('playerUID').value.trim();
+        if (!name) { showFieldError('inGameName', 'Enter your Free Fire in-game name'); valid = false; }
+        if (!uid || uid.length < 11 || uid.length > 12) { showFieldError('playerUID', 'Free Fire UID must be 11 to 12 digits only'); valid = false; }
+    }
+    if (!valid) return;
     document.getElementById('paymentSection').classList.remove('hidden');
     document.getElementById('paymentSection').scrollIntoView({behavior:'smooth'});
 }
@@ -467,34 +503,99 @@ function compressImage(dataUrl,maxW,quality,cb){
 
 async function confirmPlaceOrder() {
     if (!selectedTopup) return showToast('⚠️ No package selected','error');
-    var name,uid;
+    var name, uid;
     if (selectedTopup.game==='pubg') {
-        name=document.getElementById('pubgName').value.trim();
-        uid =document.getElementById('pubgID').value.trim();
+        name = document.getElementById('pubgName').value.trim();
+        uid  = document.getElementById('pubgID').value.trim();
     } else {
-        name=document.getElementById('inGameName').value.trim();
-        uid =document.getElementById('playerUID').value.trim();
+        name = document.getElementById('inGameName').value.trim();
+        uid  = document.getElementById('playerUID').value.trim();
     }
-    if (!name||!uid||!paymentScreenshotBase64) return showToast('⚠️ Please complete all fields','error');
-    var btn=document.getElementById('confirmOrderBtn');
-    btn.disabled=true; btn.textContent='⏳ Placing Order…';
-    var order={
-        order_id:'ORD-'+Date.now()+'-'+Math.random().toString(36).substr(2,5).toUpperCase(),
-        customer_email:currentUser.email,
-        in_game_name:name, player_uid:uid,
-        topup_label:selectedTopup.label,
-        price:selectedTopup.price,
-        game:selectedTopup.game||'freeFire',
-        screenshot:paymentScreenshotBase64,
-        status:'pending'
+    if (!name)                    return showToast('⚠️ Enter your in-game name','error');
+    if (selectedTopup.game === 'pubg') {
+        if (!uid || uid.length < 5) return showToast('⚠️ Enter a valid PUBG Player ID','error');
+    } else {
+        if (!uid || uid.length < 11 || uid.length > 12) return showToast('⚠️ Free Fire UID must be 11 to 12 digits','error');
+    }
+    if (!paymentScreenshotBase64) {
+        // Show error on upload area
+        var uploadArea = document.getElementById('uploadArea');
+        if (uploadArea) {
+            uploadArea.style.borderColor = '#ef4444';
+            uploadArea.style.background  = '#fee2e2';
+            var existErr = document.getElementById('err_uploadArea');
+            if (!existErr) {
+                var err = document.createElement('div');
+                err.id = 'err_uploadArea';
+                err.innerHTML = '❌ Please upload your eSewa payment screenshot first!';
+                err.style.cssText = 'color:#dc2626;font-size:.78rem;font-weight:700;margin-top:8px;padding:8px 12px;background:#fee2e2;border-radius:8px;border-left:3px solid #ef4444;text-align:center;';
+                uploadArea.parentNode.insertBefore(err, uploadArea.nextSibling);
+                setTimeout(function(){
+                    if(err.parentNode) err.remove();
+                    if(uploadArea) { uploadArea.style.borderColor=''; uploadArea.style.background=''; }
+                }, 4000);
+            }
+        }
+        showToast('⚠️ Upload your eSewa payment screenshot first', 'error');
+        document.getElementById('uploadArea').scrollIntoView({behavior:'smooth'});
+        return;
+    }
+
+    var btn = document.getElementById('confirmOrderBtn');
+    btn.disabled = true; btn.textContent = '⏳ Placing Order…';
+    showToast('⏳ Saving your order…', '');
+
+    // ── Build order object (without game column first for compatibility) ──
+    var orderId = 'ORD-'+Date.now()+'-'+Math.random().toString(36).substr(2,5).toUpperCase();
+    var order = {
+        order_id:       orderId,
+        customer_email: currentUser.email,
+        in_game_name:   name,
+        player_uid:     uid,
+        topup_label:    selectedTopup.label,
+        price:          selectedTopup.price,
+        screenshot:     paymentScreenshotBase64,
+        status:         'pending'
     };
+
     try {
-        var res=await _supabase.from('orders').insert([order]);
-        if(res.error){showToast('❌ Failed to place order. Try again.','error');btn.disabled=false;btn.textContent='✅ Confirm & Place Order';return;}
-        sendAdminEmailNotification(order);
+        // Try with game column first
+        var orderWithGame = Object.assign({}, order, {game: selectedTopup.game || 'freeFire'});
+        var res = await _supabase.from('orders').insert([orderWithGame]);
+
+        // If game column doesn't exist, retry without it
+        if (res.error && res.error.message && res.error.message.includes('game')) {
+            res = await _supabase.from('orders').insert([order]);
+        }
+
+        if (res.error) {
+            console.error('Order error:', res.error);
+            // If screenshot too large, try without screenshot
+            if (res.error.message && (res.error.message.includes('too large') || res.error.message.includes('size'))) {
+                var orderNoSS = Object.assign({}, orderWithGame, {screenshot: null});
+                res = await _supabase.from('orders').insert([orderNoSS]);
+                if (!res.error) {
+                    showToast('✅ Order placed! (Screenshot too large — send via WhatsApp)', 'success', 5000);
+                    sendAdminEmailNotification(orderWithGame);
+                    document.getElementById('thankYouModal').classList.remove('hidden');
+                    resetAfterOrder(); loadOrderHistory();
+                    return;
+                }
+            }
+            showToast('❌ Error: ' + res.error.message, 'error', 5000);
+            btn.disabled = false; btn.textContent = '✅ Confirm & Place Order';
+            return;
+        }
+
+        sendAdminEmailNotification(orderWithGame);
         document.getElementById('thankYouModal').classList.remove('hidden');
         resetAfterOrder(); loadOrderHistory();
-    } catch(e){showToast('❌ Connection error. Try again.','error');btn.disabled=false;btn.textContent='✅ Confirm & Place Order';}
+
+    } catch(e) {
+        console.error('Order exception:', e);
+        showToast('❌ Connection error — check your internet and try again','error');
+        btn.disabled = false; btn.textContent = '✅ Confirm & Place Order';
+    }
 }
 
 function sendAdminEmailNotification(order) {
@@ -663,13 +764,16 @@ function updateReviewPackages(){
 }
 
 async function submitReview(){
+    clearAllErrors();
     var game=document.getElementById('reviewGame').value;
     var name=(document.getElementById('reviewName').value||'').trim();
     var pkg =(document.getElementById('reviewPackage').value||'').trim();
     var text=(document.getElementById('reviewText').value||'').trim();
-    if(!name)               return showToast('⚠️ Please enter your name','error');
-    if(selectedStars===0)   return showToast('⚠️ Please select a star rating','error');
-    if(text.length<10)      return showToast('⚠️ Review too short — write at least 10 characters','error');
+    var valid = true;
+    if (!name) { showFieldError('reviewName', 'Please enter your name'); valid = false; }
+    if (selectedStars === 0) { showToast('⚠️ Please tap the stars to give a rating ⭐', 'error', 4000); valid = false; }
+    if (!text || text.trim().split(/\s+/).length < 1 || text.trim().length < 1) { showFieldError('reviewText', 'Please write at least one word for your review'); valid = false; }
+    if (!valid) return;
     try {
         var res=await _supabase.from('reviews').insert([{customer_name:name,stars:selectedStars,review_text:text,package:pkg||null,game:game,approved:false}]);
         if(res.error){showToast('❌ Failed to submit review. Try again.','error');return;}
@@ -772,3 +876,42 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     }, 5000);
 });
+
+// ══════════════════════════════════════════
+//  INLINE FIELD ERROR SYSTEM
+// ══════════════════════════════════════════
+
+function showFieldError(fieldId, msg) {
+    clearFieldError(fieldId);
+    var field = document.getElementById(fieldId);
+    if (!field) return;
+    field.style.borderColor = '#ef4444';
+    field.style.boxShadow   = '0 0 0 3px rgba(239,68,68,0.15)';
+    var err = document.createElement('div');
+    err.className = 'field-error';
+    err.id        = 'err_' + fieldId;
+    err.innerHTML = '❌ ' + msg;
+    err.style.cssText = 'color:#dc2626;font-size:.78rem;font-weight:700;margin-top:6px;padding:8px 12px;background:#fee2e2;border-radius:8px;border-left:3px solid #ef4444;display:flex;align-items:center;gap:6px;';
+    field.parentNode.insertBefore(err, field.nextSibling);
+    field.addEventListener('input', function(){ clearFieldError(fieldId); }, {once:true});
+    field.focus();
+}
+
+function clearFieldError(fieldId) {
+    var field = document.getElementById(fieldId);
+    if (field) { field.style.borderColor=''; field.style.boxShadow=''; }
+    var err = document.getElementById('err_'+fieldId);
+    if (err) err.remove();
+}
+
+function clearAllErrors() {
+    document.querySelectorAll('.field-error').forEach(function(e){ e.remove(); });
+    document.querySelectorAll('.form-input').forEach(function(f){ f.style.borderColor=''; f.style.boxShadow=''; });
+}
+
+function showSuccess(fieldId) {
+    var field = document.getElementById(fieldId);
+    if (!field) return;
+    field.style.borderColor = '#10b981';
+    field.style.boxShadow   = '0 0 0 3px rgba(16,185,129,0.15)';
+}
