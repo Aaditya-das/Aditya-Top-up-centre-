@@ -1058,4 +1058,4 @@ function deviceBar(label, count, total, color) {
         '<div style="background:var(--border);border-radius:20px;height:8px;overflow:hidden;">'+
         '<div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:20px;transition:width .8s ease;"></div>'+
         '</div></div>';
-}
+}   
