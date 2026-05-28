@@ -113,7 +113,7 @@ function switchGame(game) {
     document.getElementById('gameDetailsCard').classList.add('hidden');
     document.getElementById('orderSummaryCard').classList.add('hidden');
     document.getElementById('paymentSection').classList.add('hidden');
-    document.querySelectorAll('.topup-item.selected,.membership-item.selected,.pubg-item.selected').forEach(function(e){ e.classList.remove('selected'); });
+    document.querySelectorAll('.pkg.on,.mem.on,.pubg-pkg.on').forEach(function(e){ e.classList.remove('on'); });
 
     var ffTab   = document.getElementById('ffTab');
     var pubgTab = document.getElementById('pubgTab');
@@ -311,10 +311,10 @@ async function handleLogout() {
         var el=document.getElementById(id); if(el) el.value='';
     });
     var up=document.getElementById('uploadArea'), pr=document.getElementById('uploadPreview'), cb=document.getElementById('confirmOrderBtn');
-    if(up) up.classList.remove('has-file');
+    if(up) up.classList.remove('ok');
     if(pr) pr.classList.remove('show');
     if(cb){ cb.disabled=true; cb.textContent='✅ Confirm & Place Order'; }
-    document.querySelectorAll('.selected').forEach(function(el){ el.classList.remove('selected'); });
+    document.querySelectorAll('.pkg.on,.mem.on,.pubg-pkg.on').forEach(function(el){ el.classList.remove('on'); });
     ['gameDetailsCard','orderSummaryCard','paymentSection'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.add('hidden'); });
     showToast('👋 Logged out');
 }
@@ -364,18 +364,18 @@ async function renderTopupGrids() {
     document.getElementById('diamondGrid').innerHTML = diamondTopups.map(function(item,i){
         var inStock=stock['diamond_'+i]!==false;
         var badge=inStock?'<span class="stock-badge in-stock-badge">In Stock</span>':'<span class="stock-badge out-of-stock-badge">Out of Stock</span>';
-        var hot=(item.diamonds===610||item.diamonds===1240)?'<span class="topup-badge">🔥 HOT</span>':'';
-        var cls='topup-item'+(inStock?'':' out-of-stock');
+        var hot=(item.diamonds===610||item.diamonds===1240)?'<span class="hot-badge">🔥 HOT</span>':'';
+        var cls='pkg'+(inStock?'':' out-of-stock');
         var click=inStock?'onclick="selectTopup(this,\'diamond\','+i+')"':'';
-        return '<div class="'+cls+'" '+click+'>'+hot+'<div class="topup-diamonds">💎 '+item.diamonds+'</div><div class="topup-price">₹'+item.price+'</div>'+badge+'</div>';
+        return '<div class="'+cls+'" '+click+'>'+hot+'<div class="pkg-icon">💎</div><div class="pkg-top">'+item.diamonds+' Diamonds</div><div class="pkg-price">₹'+item.price+'</div><div><span class="stk '+(inStock?'in':'out')+'">'+(inStock?'In Stock':'Out of Stock')+'</span></div></div>';
     }).join('');
     // Memberships
     document.getElementById('membershipGrid').innerHTML = membershipTopups.map(function(item,i){
         var inStock=stock['membership_'+i]!==false;
         var badge=inStock?'<span class="stock-badge in-stock-badge">In Stock</span>':'<span class="stock-badge out-of-stock-badge">Out of Stock</span>';
-        var cls='membership-item'+(inStock?'':' out-of-stock');
+        var cls='mem'+(inStock?'':' out-of-stock');
         var click=inStock?'onclick="selectTopup(this,\'membership\','+i+')"':'';
-        return '<div class="'+cls+'" '+click+'><div><span class="membership-name">'+item.icon+' '+item.name+'</span> '+badge+'</div><span class="membership-price">₹'+item.price+'</span></div>';
+        return '<div class="'+cls+'" '+click+'><div class="mem-left"><span class="mem-name">'+item.icon+' '+item.name+'</span><span class="mem-desc">💎 Free Fire Pass</span><span class="stk '+(inStock?'in':'out')+'">'+(inStock?'In Stock':'Out of Stock')+'</span></div><span class="mem-price">₹'+item.price+'</span></div>';
     }).join('');
 }
 
@@ -384,16 +384,16 @@ async function renderPubgGrid() {
     document.getElementById('pubgGrid').innerHTML = pubgTopups.map(function(item,i){
         var inStock=stock['pubg_'+i]!==false;
         var badge=inStock?'<span class="stock-badge in-stock-badge">In Stock</span>':'<span class="stock-badge out-of-stock-badge">Out of Stock</span>';
-        var hot=(item.uc===660||item.uc===1800)?'<span class="pubg-badge">🔥 HOT</span>':'';
-        var cls='pubg-item'+(inStock?'':' out-of-stock');
+        var hot=(item.uc===660||item.uc===1800)?'<span class="pub-hot">🔥 HOT</span>':'';
+        var cls='pubg-pkg'+(inStock?'':' out-of-stock');
         var click=inStock?'onclick="selectTopup(this,\'pubg\','+i+')"':'';
-        return '<div class="'+cls+'" '+click+'>'+hot+'<div class="pubg-uc">🎮 '+item.uc+' UC</div><div class="pubg-price">₹'+item.price+'</div>'+badge+'</div>';
+        return '<div class="'+cls+'" '+click+'>'+hot+'<div class="pubg-icon">🎮</div><div class="pubg-top">'+item.uc+' UC</div><div class="pkg-price">₹'+item.price+'</div><div><span class="stk '+(inStock?'in':'out')+'">'+(inStock?'In Stock':'Out of Stock')+'</span></div></div>';
     }).join('');
 }
 
 function selectTopup(el, type, index) {
-    document.querySelectorAll('.topup-item.selected,.membership-item.selected,.pubg-item.selected').forEach(function(e){ e.classList.remove('selected'); });
-    el.classList.add('selected');
+    document.querySelectorAll('.pkg.on,.mem.on,.pubg-pkg.on').forEach(function(e){ e.classList.remove('on'); });
+    el.classList.add('on');
 
     var detailsCard = document.getElementById('gameDetailsCard');
     var ffDetails   = detailsCard.querySelector('.ff-details');
@@ -480,7 +480,7 @@ function handleScreenshotUpload(event) {
             paymentScreenshotBase64=b64;
             document.getElementById('uploadPreview').src=b64;
             document.getElementById('uploadPreview').classList.add('show');
-            document.getElementById('uploadArea').classList.add('has-file');
+            document.getElementById('uploadArea').classList.add('ok');
             document.getElementById('confirmOrderBtn').disabled=false;
             showToast('📸 Screenshot uploaded!','success');
         });
@@ -618,12 +618,12 @@ function resetAfterOrder() {
     ['paymentSection','orderSummaryCard','gameDetailsCard'].forEach(function(id){
         var el=document.getElementById(id); if(el) el.classList.add('hidden');
     });
-    document.querySelectorAll('.selected').forEach(function(el){ el.classList.remove('selected'); });
+    document.querySelectorAll('.pkg.on,.mem.on,.pubg-pkg.on').forEach(function(el){ el.classList.remove('on'); });
     ['inGameName','playerUID','pubgName','pubgID'].forEach(function(id){
         var el=document.getElementById(id); if(el) el.value='';
     });
     var up=document.getElementById('uploadArea'),pr=document.getElementById('uploadPreview'),cb=document.getElementById('confirmOrderBtn');
-    if(up) up.classList.remove('has-file');
+    if(up) up.classList.remove('ok');
     if(pr) pr.classList.remove('show');
     if(cb){cb.disabled=true;cb.textContent='✅ Confirm & Place Order';}
 }
@@ -1058,4 +1058,4 @@ function deviceBar(label, count, total, color) {
         '<div style="background:var(--border);border-radius:20px;height:8px;overflow:hidden;">'+
         '<div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:20px;transition:width .8s ease;"></div>'+
         '</div></div>';
-}   
+}
