@@ -65,7 +65,17 @@ body {
 .particle:nth-child(10){left:92%;width:7px;height:7px;animation-duration:7.8s;animation-delay:1.5s}
 
 /* ── Layout ── */
-.app-container{position:relative;z-index:1;max-width:540px;margin:0 auto;padding:16px 14px;min-height:100vh;display:flex;flex-direction:column;}
+.app-container{
+    position:relative;
+    z-index:1;
+    width:100%;
+    max-width:1400px;
+    margin:0 auto;
+    padding:20px;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+}
 
 /* ══ HEADER ══ */
 .app-header{text-align:center;padding:28px 16px 16px;}
