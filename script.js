@@ -969,7 +969,7 @@ document.addEventListener('DOMContentLoaded', function(){
     updateReviewPackages();
     // Show loading
     var ls = document.getElementById('loadingSection');
-    if (ls) ls.classList.remove('hidden');
+     if (ls) ls.classList.add('hidden');
     // Timeout fallback
     setTimeout(function(){
         if (!_authLoaded) {
