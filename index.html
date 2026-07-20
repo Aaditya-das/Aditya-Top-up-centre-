@@ -903,9 +903,9 @@ function updateUI(user, isAdm) {
 
     if (user) {
      // Bottom navigation after login
-document.getElementById('bnav-orders').style.display = 'flex';
-document.getElementById('bnav-reviews').style.display = 'flex';
-document.getElementById('bnav-account').style.display = 'flex';
+     document.getElementById('bnav-orders').style.display = '';
+document.getElementById('bnav-reviews').style.display = '';
+document.getElementById('bnav-account').style.display = ''; 
         if (btn) btn.textContent = 'Logout';
         if (accNotLoggedIn) accNotLoggedIn.classList.add('hidden');
         if (accLoggedIn)    accLoggedIn.classList.remove('hidden');
