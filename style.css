@@ -657,4 +657,10 @@ body {
     .trust-badges{
         gap:12px;
     }
+}          
+/* Hide these before login */
+#bnav-orders,
+#bnav-reviews,
+#bnav-account {
+    display: none;
 }
