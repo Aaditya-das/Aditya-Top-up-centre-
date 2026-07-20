@@ -889,7 +889,6 @@ function switchAuthTab(tab) {
         btn.onclick = handleSignUp;
     }
 }
-
 // ── Update top bar + account page when login state changes ──
 function updateUI(user, isAdm) {
     var btn = document.getElementById('tbAuthBtn');
@@ -903,6 +902,10 @@ function updateUI(user, isAdm) {
     var adminHome      = document.getElementById('adminHome');
 
     if (user) {
+     // Bottom navigation after login
+document.getElementById('bnav-orders').style.display = 'flex';
+document.getElementById('bnav-reviews').style.display = 'flex';
+document.getElementById('bnav-account').style.display = 'flex';
         if (btn) btn.textContent = 'Logout';
         if (accNotLoggedIn) accNotLoggedIn.classList.add('hidden');
         if (accLoggedIn)    accLoggedIn.classList.remove('hidden');
@@ -918,6 +921,10 @@ function updateUI(user, isAdm) {
             if (custHome)  custHome.classList.remove('hidden');
         }
     } else {
+     // Hide bottom navigation before login
+document.getElementById('bnav-orders').style.display = 'none';
+document.getElementById('bnav-reviews').style.display = 'none';
+document.getElementById('bnav-account').style.display = 'none';
         if (btn) btn.textContent = 'Login';
         if (accNotLoggedIn) accNotLoggedIn.classList.remove('hidden');
         if (accLoggedIn)    accLoggedIn.classList.add('hidden');
@@ -931,6 +938,7 @@ function handleTopBarAuth() {
     if (window.currentUser) { handleLogout(); }
     else { goPage('home'); window.scrollTo({top:0,behavior:'smooth'}); }
 }
+
 
 // ── Privacy ──
 function openPrivacy()  { document.getElementById('privacyModal').classList.remove('hidden'); document.body.style.overflow='hidden'; }
