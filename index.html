@@ -902,10 +902,8 @@ function updateUI(user, isAdm) {
     var adminHome      = document.getElementById('adminHome');
 
     if (user) {
-     // Bottom navigation after login
-     document.getElementById('bnav-orders').style.display = '';
-document.getElementById('bnav-reviews').style.display = '';
-document.getElementById('bnav-account').style.display = ''; 
+     // Show bottom navigation after login
+document.getElementById('bottomNav').style.display = 'flex';
         if (btn) btn.textContent = 'Logout';
         if (accNotLoggedIn) accNotLoggedIn.classList.add('hidden');
         if (accLoggedIn)    accLoggedIn.classList.remove('hidden');
@@ -921,10 +919,8 @@ document.getElementById('bnav-account').style.display = '';
             if (custHome)  custHome.classList.remove('hidden');
         }
     } else {
-     // Hide bottom navigation before login
-document.getElementById('bnav-orders').style.display = 'none';
-document.getElementById('bnav-reviews').style.display = 'none';
-document.getElementById('bnav-account').style.display = 'none';
+    // Hide bottom navigation before login
+document.getElementById('bottomNav').style.display = 'none'; 
         if (btn) btn.textContent = 'Login';
         if (accNotLoggedIn) accNotLoggedIn.classList.remove('hidden');
         if (accLoggedIn)    accLoggedIn.classList.add('hidden');
