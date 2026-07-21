@@ -242,6 +242,11 @@ async function handleLogout() {
         var el=document.getElementById(id); if(el) el.classList.add('hidden');
     });
     showToast('👋 Logged out');
+   goPage('home');
+window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+}); 
 }
 
 // ── Auth state change ──
