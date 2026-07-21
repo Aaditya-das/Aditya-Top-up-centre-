@@ -978,3 +978,27 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     }, 5000);
 });
+/* ═══════════════════════════════════════
+   BACK TO TOP BUTTON
+═══════════════════════════════════════ */
+
+var backToTop = document.getElementById("backToTop");
+
+window.addEventListener("scroll", function () {
+    if (!backToTop) return;
+
+    if (window.scrollY > 300) {
+        backToTop.style.display = "block";
+    } else {
+        backToTop.style.display = "none";
+    }
+});
+
+if (backToTop) {
+    backToTop.addEventListener("click", function () {
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+    });
+}
