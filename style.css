@@ -664,3 +664,29 @@ body {
 #bnav-account {
     display: none;
 }
+/* ══ BACK TO TOP BUTTON ══ */
+#backToTop{
+  position:fixed;
+  bottom:85px;
+  right:20px;
+  width:50px;
+  height:50px;
+  border:none;
+  border-radius:50%;
+  background:linear-gradient(135deg,#2563eb,#7c3aed);
+  color:#fff;
+  font-size:22px;
+  cursor:pointer;
+  display:none;
+  z-index:999;
+  box-shadow:0 8px 20px rgba(0,0,0,.25);
+  transition:all .3s ease;
+}
+
+#backToTop:hover{
+  transform:translateY(-3px);
+}
+
+#backToTop:active{
+  transform:scale(.95);
+}
